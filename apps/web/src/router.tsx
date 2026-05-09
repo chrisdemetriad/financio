@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom'
+import { AuthenticateWithRedirectCallback } from '@clerk/react'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { InvoicesPage } from '@/pages/InvoicesPage'
@@ -11,6 +12,10 @@ export function createRouter(darkMode: boolean, onToggleDark: () => void) {
     {
       path: '/sign-in',
       element: <SignInPage />,
+    },
+    {
+      path: '/sign-in/sso-callback',
+      element: <AuthenticateWithRedirectCallback />,
     },
     {
       element: <ProtectedRoute />,
