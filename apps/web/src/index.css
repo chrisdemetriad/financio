@@ -1,0 +1,54 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+@theme {
+  /* Brand palette */
+  --color-accent: #4f7dfa;
+  --color-accent-hover: #3d6ef0;
+
+  /* Dark surfaces */
+  --color-bg: #13141a;
+  --color-surface: #1c1e26;
+  --color-surface-hover: #22252f;
+  --color-border: rgba(255, 255, 255, 0.06);
+
+  /* Status */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* Font */
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: #e2e8f0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
