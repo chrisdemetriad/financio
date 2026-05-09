@@ -2,13 +2,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@clerk/react'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
 import { createApiClient } from '@/lib/api'
-import type { Invoice } from '@financio/types'
+import { invoiceToFormat } from '@financio/exports'
+import type { ExportFormat, Invoice } from '@financio/types'
 
 const POLL_INTERVAL_MS = 3000
+const DEFAULT_FORMAT: ExportFormat = 'csv'
+
+async function copyToClipboard(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text)
+}
 
 export function InvoicesPage() {
   const { getToken } = useAuth()
@@ -17,25 +33,60 @@ export function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Track IDs that were processing so we can detect completions
+  const processingIds = useRef<Set<string>>(new Set())
 
   const hasProcessing = invoices.some((inv) => inv.status === 'processing')
 
-  // Load invoices on mount (commit 14)
+  // Load invoices on mount
   useEffect(() => {
     api.getInvoices().then(setInvoices).catch(console.error)
   }, [api])
 
-  // Poll while any invoice is processing
+  // Keep processingIds in sync
+  useEffect(() => {
+    invoices.forEach((inv) => {
+      if (inv.status === 'processing') processingIds.current.add(inv.id)
+    })
+  }, [invoices])
+
+  // Poll while any invoice is processing; detect completions and auto-copy
   useEffect(() => {
     if (hasProcessing) {
       if (!pollRef.current) {
-        pollRef.current = setInterval(() => {
-          api
-            .getInvoices()
-            .then((fresh) => {
-              setInvoices(fresh)
-            })
-            .catch(console.error)
+        pollRef.current = setInterval(async () => {
+          try {
+            const fresh = await api.getInvoices()
+
+            // Find newly-completed invoices (were processing, now complete)
+            const justCompleted = fresh.filter(
+              (inv) => inv.status === 'complete' && processingIds.current.has(inv.id),
+            )
+
+            if (justCompleted.length > 0) {
+              // Remove from tracking set
+              for (const inv of justCompleted) {
+                processingIds.current.delete(inv.id)
+              }
+
+              // Copy to clipboard
+              const text = justCompleted
+                .map((inv) => invoiceToFormat(inv, DEFAULT_FORMAT))
+                .join('\n')
+              await copyToClipboard(text).catch(() => null)
+
+              const count = justCompleted.length
+              const fmt = DEFAULT_FORMAT.toUpperCase()
+              toast.success(
+                `${count} entr${count > 1 ? 'ies' : 'y'} copied to clipboard as ${fmt}`,
+                { duration: 4000 },
+              )
+            }
+
+            setInvoices(fresh)
+          } catch {
+            // silent — polling errors should not disrupt the UI
+          }
         }, POLL_INTERVAL_MS)
       }
     } else {
@@ -64,6 +115,7 @@ export function InvoicesPage() {
             duplicates++
           } else {
             added++
+            processingIds.current.add(invoice.id)
             setInvoices((prev) => {
               const idx = prev.findIndex((i) => i.id === invoice.id)
               if (idx >= 0) {
@@ -77,7 +129,6 @@ export function InvoicesPage() {
         } else {
           const err = result.reason as Error & { status?: number; body?: { message?: string } }
           if (err.status === 409 && err.body) {
-            // duplicate returned by the server
             duplicates++
             const dup = (err.body as { invoice?: Invoice }).invoice
             if (dup) {
@@ -93,17 +144,15 @@ export function InvoicesPage() {
       }
 
       setUploading(false)
-
       if (added) toast.success(`${added} invoice${added > 1 ? 's' : ''} queued for processing`)
       if (duplicates) toast.info(`${duplicates} duplicate${duplicates > 1 ? 's' : ''} skipped`)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [api],
   )
 
   const handleClear = async () => {
-    if (!window.confirm('Clear all invoices? This cannot be undone.')) return
     await api.clearInvoices()
+    processingIds.current.clear()
     setInvoices([])
     toast.success('All invoices cleared')
   }
@@ -118,15 +167,34 @@ export function InvoicesPage() {
           </p>
         </div>
         {invoices.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 border-white/8 text-slate-400 hover:border-red-500/40 hover:text-red-400"
-            onClick={handleClear}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Clear all
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-white/8 px-3 text-sm text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear all
+            </AlertDialogTrigger>
+            <AlertDialogContent className="border-white/8 bg-surface">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-slate-100">Clear all invoices?</AlertDialogTitle>
+                <AlertDialogDescription className="text-slate-400">
+                  This will permanently delete all {invoices.length} invoice
+                  {invoices.length > 1 ? 's' : ''} from the database. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="border-white/8 bg-transparent text-slate-300 hover:bg-white/5">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  onClick={handleClear}
+                >
+                  Delete all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
 

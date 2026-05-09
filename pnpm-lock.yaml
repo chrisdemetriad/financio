@@ -84,6 +84,9 @@ importers:
       '@clerk/react':
         specifier: ^6.6.2
         version: 6.6.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@financio/exports':
+        specifier: workspace:*
+        version: link:../../packages/exports
       '@financio/types':
         specifier: workspace:*
         version: link:../../packages/types
