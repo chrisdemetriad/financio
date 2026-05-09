@@ -1,6 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import { clerkAuth } from './plugins/clerk.js'
 import { healthRoutes } from './routes/health.js'
+import { authRoutes } from './routes/auth.js'
 
 const server = Fastify({
   logger: {
@@ -16,7 +18,9 @@ await server.register(cors, {
   credentials: true,
 })
 
+await server.register(clerkAuth)
 await server.register(healthRoutes)
+await server.register(authRoutes)
 
 const port = Number(process.env.PORT ?? 3001)
 const host = process.env.HOST ?? '0.0.0.0'
