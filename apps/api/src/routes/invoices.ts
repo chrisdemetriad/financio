@@ -6,6 +6,7 @@ import { saveUploadedFile } from '../lib/storage.js'
 import { sha256 } from '../lib/hash.js'
 import { runExtractor, PasswordProtectedError } from '../agents/extractor.js'
 import { runValidator } from '../agents/validator.js'
+import { runLogoAgent } from '../agents/logo.js'
 import { db } from '../lib/db.js'
 import type { Invoice } from '@financio/types'
 
@@ -75,7 +76,7 @@ function formatInvoice(row: {
   }
 }
 
-async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType<typeof import('../agents/validator.js').runValidator>>) {
+async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType<typeof import('../agents/validator.js').runValidator>>, logoUrl?: string | null) {
   await db.invoice.update({
     where: { id: invoiceId },
     data: {
@@ -91,6 +92,7 @@ async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType
       currency: validated.currency,
       confidence: validated.confidence,
       status: 'COMPLETE',
+      ...(logoUrl !== undefined && { logoUrl }),
     },
   })
 }
@@ -175,8 +177,12 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     ;(async () => {
       try {
         const extracted = await runExtractor(buffer, mimeType)
-        const validated = await runValidator(extracted)
-        await persistExtracted(invoice.id, validated)
+        // Validator and logo agent run concurrently after extraction
+        const [validated, logoUrl] = await Promise.all([
+          runValidator(extracted),
+          extracted.vendorDomain ? runLogoAgent(extracted.vendorDomain) : Promise.resolve(null),
+        ])
+        await persistExtracted(invoice.id, validated, logoUrl)
         fastify.log.info({ invoiceId: invoice.id }, 'Invoice processing complete')
       } catch (err) {
         if (err instanceof PasswordProtectedError) {
@@ -228,8 +234,11 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const buffer = await readFile(invoice.filePath!)
         const extracted = await runExtractor(buffer, 'application/pdf', body.data.password)
-        const validated = await runValidator(extracted)
-        await persistExtracted(id, validated)
+        const [validated, logoUrl] = await Promise.all([
+          runValidator(extracted),
+          extracted.vendorDomain ? runLogoAgent(extracted.vendorDomain) : Promise.resolve(null),
+        ])
+        await persistExtracted(id, validated, logoUrl)
         fastify.log.info({ invoiceId: id }, 'Unlocked invoice processing complete')
       } catch (err) {
         const isWrongPassword = err instanceof PasswordProtectedError

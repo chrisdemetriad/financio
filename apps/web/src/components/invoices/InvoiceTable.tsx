@@ -71,9 +71,14 @@ export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
         return (
           <div className="flex min-w-[140px] items-center gap-2.5">
             {logoUrl ? (
-              <img src={logoUrl} alt={vendor ?? ''} className="h-6 w-6 rounded object-contain" />
+              <img
+                src={logoUrl}
+                alt={vendor ?? ''}
+                className="h-7 w-7 rounded-md object-contain p-0.5 ring-1 ring-white/10"
+                onError={(e) => { e.currentTarget.style.display = 'none' }}
+              />
             ) : (
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-white/[0.06] text-[10px] font-bold uppercase text-slate-400">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/6 text-[10px] font-bold uppercase tracking-wide text-slate-400 ring-1 ring-white/8">
                 {vendor?.slice(0, 2) ?? '?'}
               </div>
             )}

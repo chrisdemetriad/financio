@@ -1,6 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
+import staticFiles from '@fastify/static'
+import path from 'node:path'
 import { clerkAuth } from './plugins/clerk.js'
 import { healthRoutes } from './routes/health.js'
 import { authRoutes } from './routes/auth.js'
@@ -22,6 +24,13 @@ await server.register(cors, {
 })
 
 await server.register(multipart)
+
+// Serve locally stored logos (dev fallback when no S3/GCS configured)
+await server.register(staticFiles, {
+  root: path.join(process.cwd(), 'uploads', 'logos'),
+  prefix: '/logos/',
+  decorateReply: false,
+})
 
 await server.register(clerkAuth)
 await server.register(healthRoutes)
