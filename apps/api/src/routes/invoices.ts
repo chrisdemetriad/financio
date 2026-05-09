@@ -119,25 +119,35 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     // Resolve internal DB user id (clerkId → User.id)
     const dbUserId = await resolveDbUserId(request.userId!)
 
-    // Duplicate detection (commit 8)
+    // Duplicate detection — skip only if a non-errored record already exists.
+    // ERROR records are retried: reset to PROCESSING and reprocess.
     const existing = await db.invoice.findUnique({ where: { fileHash } })
     if (existing) {
-      return reply.status(409).send({
-        duplicate: true,
-        invoice: formatInvoice(existing),
+      if (existing.status !== 'ERROR') {
+        return reply.status(409).send({
+          duplicate: true,
+          invoice: formatInvoice(existing),
+        })
+      }
+      // Reset the errored record so the UI shows it as processing again
+      await db.invoice.update({
+        where: { id: existing.id },
+        data: { status: 'PROCESSING', filePath },
       })
     }
 
-    // Create a PROCESSING record immediately so the UI can show a spinner
-    const invoice = await db.invoice.create({
-      data: {
-        fileHash,
-        fileName: data.filename,
-        filePath,
-        status: 'PROCESSING',
-        userId: dbUserId,
-      },
-    })
+    // Reuse the existing (retried) record or create a fresh one
+    const invoice = existing
+      ? { ...existing, status: 'PROCESSING' as const }
+      : await db.invoice.create({
+          data: {
+            fileHash,
+            fileName: data.filename,
+            filePath,
+            status: 'PROCESSING',
+            userId: dbUserId,
+          },
+        })
 
     // Run agents asynchronously — we reply first, then update
     ;(async () => {
