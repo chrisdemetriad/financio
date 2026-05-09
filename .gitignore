@@ -18,6 +18,9 @@ build
 *.sqlite
 prisma/migrations/dev.db
 
+# uploaded invoice files (local dev only)
+apps/api/uploads/
+
 # generated
 generated/
 
