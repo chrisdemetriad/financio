@@ -26,6 +26,19 @@
     color-scheme: dark;
   }
 
+  /* Light mode overrides applied when <html class="light"> */
+  html.light {
+    color-scheme: light;
+    --color-bg: #f5f6fa;
+    --color-surface: #ffffff;
+    --color-surface-hover: #eef0f6;
+    --color-border: rgba(0, 0, 0, 0.07);
+  }
+
+  html.light body {
+    color: #1e2130;
+  }
+
   body {
     background-color: var(--color-bg);
     color: #e2e8f0;

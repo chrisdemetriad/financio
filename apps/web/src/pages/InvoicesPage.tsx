@@ -16,18 +16,19 @@ import {
 import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
 import { createApiClient } from '@/lib/api'
+import { useSettings } from '@/lib/settings'
 import { invoiceToFormat } from '@financio/exports'
-import type { ExportFormat, Invoice } from '@financio/types'
-
-const POLL_INTERVAL_MS = 3000
-const DEFAULT_FORMAT: ExportFormat = 'csv'
+import type { Invoice } from '@financio/types'
 
 async function copyToClipboard(text: string): Promise<void> {
   await navigator.clipboard.writeText(text)
 }
 
+const POLL_INTERVAL_MS = 3000
+
 export function InvoicesPage() {
   const { getToken } = useAuth()
+  const { exportFormat, visibleColumns } = useSettings()
   const api = useMemo(() => createApiClient(() => getToken()), [getToken])
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -71,12 +72,12 @@ export function InvoicesPage() {
 
               // Copy to clipboard
               const text = justCompleted
-                .map((inv) => invoiceToFormat(inv, DEFAULT_FORMAT))
+                .map((inv) => invoiceToFormat(inv, exportFormat))
                 .join('\n')
               await copyToClipboard(text).catch(() => null)
 
               const count = justCompleted.length
-              const fmt = DEFAULT_FORMAT.toUpperCase()
+              const fmt = exportFormat.toUpperCase()
               toast.success(
                 `${count} entr${count > 1 ? 'ies' : 'y'} copied to clipboard as ${fmt}`,
                 { duration: 4000 },
@@ -98,7 +99,7 @@ export function InvoicesPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [hasProcessing, api])
+  }, [hasProcessing, api, exportFormat])
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -199,7 +200,7 @@ export function InvoicesPage() {
       </div>
 
       <DropZone onFiles={handleFiles} uploading={uploading} />
-      <InvoiceTable invoices={invoices} />
+      <InvoiceTable invoices={invoices} visibleColumns={visibleColumns} />
     </div>
   )
 }

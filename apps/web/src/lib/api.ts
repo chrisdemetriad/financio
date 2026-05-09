@@ -1,4 +1,4 @@
-import type { Invoice, UploadResponse } from '@financio/types'
+import type { Invoice, UploadResponse, UserSettings } from '@financio/types'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -34,6 +34,15 @@ export function createApiClient(getToken: () => Promise<string | null>) {
     },
 
     clearInvoices: () => request<void>('/invoices', { method: 'DELETE' }, getToken),
+
+    getSettings: () => request<UserSettings>('/settings', {}, getToken),
+
+    patchSettings: (patch: Partial<UserSettings>) =>
+      request<UserSettings>('/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }, getToken),
   }
 }
 

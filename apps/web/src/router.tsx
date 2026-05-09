@@ -7,7 +7,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { MonitoringPage } from '@/pages/MonitoringPage'
 import { SignInPage } from '@/pages/SignInPage'
 
-export function createRouter(darkMode: boolean, onToggleDark: () => void) {
+export function createRouter() {
   return createBrowserRouter([
     {
       path: '/sign-in',
@@ -21,7 +21,7 @@ export function createRouter(darkMode: boolean, onToggleDark: () => void) {
       element: <ProtectedRoute />,
       children: [
         {
-          element: <AppShell darkMode={darkMode} onToggleDark={onToggleDark} />,
+          element: <AppShell />,
           children: [
             { path: '/', element: <InvoicesPage /> },
             { path: '/settings', element: <SettingsPage /> },

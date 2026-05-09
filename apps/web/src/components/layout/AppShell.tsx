@@ -1,16 +1,11 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 
-interface AppShellProps {
-  darkMode: boolean
-  onToggleDark: () => void
-}
-
-export function AppShell({ darkMode, onToggleDark }: AppShellProps) {
+export function AppShell() {
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar darkMode={darkMode} onToggleDark={onToggleDark} />
-      <main className="flex flex-1 flex-col overflow-hidden bg-[#13141a]">
+      <Sidebar />
+      <main className="flex flex-1 flex-col overflow-hidden bg-bg">
         <Outlet />
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { FileText, Settings, Activity, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSettings } from '@/lib/settings'
 
 const NAV = [
   { to: '/', label: 'Invoices', icon: FileText, end: true },
@@ -8,17 +9,14 @@ const NAV = [
   { to: '/monitoring', label: 'Monitoring', icon: Activity },
 ]
 
-interface SidebarProps {
-  darkMode: boolean
-  onToggleDark: () => void
-}
+export function Sidebar() {
+  const { darkMode, toggleDark } = useSettings()
 
-export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
   return (
-    <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-white/[0.06] bg-[#1c1e26]">
+    <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-white/[0.06] px-5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#4f7dfa] text-xs font-bold text-white">
+      <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
           F
         </div>
         <span className="text-sm font-semibold tracking-tight text-white">Financio</span>
@@ -35,7 +33,7 @@ export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
               cn(
                 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
                 isActive
-                  ? 'bg-[#4f7dfa]/15 text-[#4f7dfa]'
+                  ? 'bg-accent/15 text-accent'
                   : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200',
               )
             }
@@ -47,9 +45,9 @@ export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
       </nav>
 
       {/* Dark mode toggle */}
-      <div className="border-t border-white/[0.06] p-4">
+      <div className="border-t border-border p-4">
         <button
-          onClick={onToggleDark}
+          onClick={toggleDark}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-slate-200"
         >
           {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

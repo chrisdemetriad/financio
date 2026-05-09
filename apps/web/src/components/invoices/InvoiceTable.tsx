@@ -50,9 +50,10 @@ function money(value: number | null, currency: string | null) {
 
 interface InvoiceTableProps {
   invoices: Invoice[]
+  visibleColumns: string[]
 }
 
-export function InvoiceTable({ invoices }: InvoiceTableProps) {
+export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
 
   const columns: ColumnDef<Invoice>[] = [
@@ -136,7 +137,10 @@ export function InvoiceTable({ invoices }: InvoiceTableProps) {
 
   const table = useReactTable({
     data: invoices,
-    columns,
+    columns: columns.filter((col) => {
+      const id = (col as { accessorKey?: string }).accessorKey
+      return !id || visibleColumns.includes(id)
+    }),
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
