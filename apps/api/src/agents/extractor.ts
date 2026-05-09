@@ -18,8 +18,8 @@ export const ExtractedInvoiceSchema = z.object({
   lineItems: z.array(
     z.object({
       description: z.string(),
-      quantity: z.number().optional(),
-      unitPrice: z.number().optional(),
+      quantity: z.number().nullish(),
+      unitPrice: z.number().nullish(),
       total: z.number(),
     }),
   ),
@@ -28,14 +28,14 @@ export const ExtractedInvoiceSchema = z.object({
   total: z.number().nullable(),
   currency: z.string().nullable(),
   confidence: z.object({
-    vendor: z.number().optional(),
-    invoiceNumber: z.number().optional(),
-    invoiceDate: z.number().optional(),
-    dueDate: z.number().optional(),
-    total: z.number().optional(),
-    subtotal: z.number().optional(),
-    tax: z.number().optional(),
-    currency: z.number().optional(),
+    vendor: z.number().nullish(),
+    invoiceNumber: z.number().nullish(),
+    invoiceDate: z.number().nullish(),
+    dueDate: z.number().nullish(),
+    total: z.number().nullish(),
+    subtotal: z.number().nullish(),
+    tax: z.number().nullish(),
+    currency: z.number().nullish(),
   }),
 })
 
