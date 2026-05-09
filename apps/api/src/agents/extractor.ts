@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { PDFParse } from 'pdf-parse'
+import { PDFParse, PasswordException } from 'pdf-parse'
 import { z } from 'zod'
 import heicConvert from 'heic-convert'
 
@@ -8,6 +8,13 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 const PDF_TYPE = 'application/pdf'
 const HEIC_TYPE = 'image/heic'
+
+export class PasswordProtectedError extends Error {
+  constructor() {
+    super('PDF is password-protected')
+    this.name = 'PasswordProtectedError'
+  }
+}
 
 export const ExtractedInvoiceSchema = z.object({
   vendor: z.string().nullable(),
@@ -116,11 +123,16 @@ async function extractFromImage(base64: string, mimeType: string): Promise<Extra
   return ExtractedInvoiceSchema.parse(parsed)
 }
 
-export async function runExtractor(buffer: Buffer, mimeType: string): Promise<ExtractedInvoice> {
+export async function runExtractor(buffer: Buffer, mimeType: string, password?: string): Promise<ExtractedInvoice> {
   if (mimeType === PDF_TYPE) {
-    const parser = new PDFParse({ data: buffer })
-    const result = await parser.getText()
-    return extractFromText(result.text)
+    try {
+      const parser = new PDFParse({ data: buffer, ...(password ? { password } : {}) })
+      const result = await parser.getText()
+      return extractFromText(result.text)
+    } catch (err) {
+      if (err instanceof PasswordException) throw new PasswordProtectedError()
+      throw err
+    }
   }
 
   if (mimeType === HEIC_TYPE) {

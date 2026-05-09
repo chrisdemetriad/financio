@@ -4,7 +4,7 @@ export type ExportFormat = 'csv' | 'json' | 'tsv' | 'markdown'
 
 export type StorageCloud = 'aws' | 'gcp'
 
-export type InvoiceStatus = 'processing' | 'complete' | 'error'
+export type InvoiceStatus = 'processing' | 'complete' | 'error' | 'awaiting_password'
 
 export interface InvoiceLineItem {
   description: string

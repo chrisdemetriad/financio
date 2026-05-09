@@ -35,6 +35,13 @@ export function createApiClient(getToken: () => Promise<string | null>) {
 
     clearInvoices: () => request<void>('/invoices', { method: 'DELETE' }, getToken),
 
+    unlockInvoice: (id: string, password: string) =>
+      request<Invoice>(`/invoices/${id}/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      }, getToken),
+
     getSettings: () => request<UserSettings>('/settings', {}, getToken),
 
     patchSettings: (patch: Partial<UserSettings>) =>

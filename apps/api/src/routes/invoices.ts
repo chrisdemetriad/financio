@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { readFile } from 'node:fs/promises'
+import { z } from 'zod'
 import { requireAuth } from '../plugins/clerk.js'
 import { saveUploadedFile } from '../lib/storage.js'
 import { sha256 } from '../lib/hash.js'
-import { runExtractor } from '../agents/extractor.js'
+import { runExtractor, PasswordProtectedError } from '../agents/extractor.js'
 import { runValidator } from '../agents/validator.js'
 import { db } from '../lib/db.js'
 import type { Invoice } from '@financio/types'
@@ -71,6 +73,26 @@ function formatInvoice(row: {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
+}
+
+async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType<typeof import('../agents/validator.js').runValidator>>) {
+  await db.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      vendor: validated.vendor,
+      vendorDomain: validated.vendorDomain,
+      invoiceNumber: validated.invoiceNumber,
+      invoiceDate: validated.invoiceDate ? new Date(validated.invoiceDate) : null,
+      dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
+      lineItems: validated.lineItems,
+      subtotal: validated.subtotal !== null ? validated.subtotal : undefined,
+      tax: validated.tax !== null ? validated.tax : undefined,
+      total: validated.total !== null ? validated.total : undefined,
+      currency: validated.currency,
+      confidence: validated.confidence,
+      status: 'COMPLETE',
+    },
+  })
 }
 
 export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
@@ -154,32 +176,16 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const extracted = await runExtractor(buffer, mimeType)
         const validated = await runValidator(extracted)
-
-        await db.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            vendor: validated.vendor,
-            vendorDomain: validated.vendorDomain,
-            invoiceNumber: validated.invoiceNumber,
-            invoiceDate: validated.invoiceDate ? new Date(validated.invoiceDate) : null,
-            dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
-            lineItems: validated.lineItems,
-            subtotal: validated.subtotal !== null ? validated.subtotal : undefined,
-            tax: validated.tax !== null ? validated.tax : undefined,
-            total: validated.total !== null ? validated.total : undefined,
-            currency: validated.currency,
-            confidence: validated.confidence,
-            status: 'COMPLETE',
-          },
-        })
-
+        await persistExtracted(invoice.id, validated)
         fastify.log.info({ invoiceId: invoice.id }, 'Invoice processing complete')
       } catch (err) {
-        fastify.log.error({ err, invoiceId: invoice.id }, 'Invoice processing failed')
-        await db.invoice.update({
-          where: { id: invoice.id },
-          data: { status: 'ERROR' },
-        })
+        if (err instanceof PasswordProtectedError) {
+          fastify.log.info({ invoiceId: invoice.id }, 'Invoice is password-protected')
+          await db.invoice.update({ where: { id: invoice.id }, data: { status: 'AWAITING_PASSWORD' } })
+        } else {
+          fastify.log.error({ err, invoiceId: invoice.id }, 'Invoice processing failed')
+          await db.invoice.update({ where: { id: invoice.id }, data: { status: 'ERROR' } })
+        }
       }
     })()
 
@@ -193,5 +199,49 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       where: { userId: dbUserId },
     })
     return reply.status(204).send()
+  })
+
+  // POST /invoices/:id/unlock — retry a password-protected PDF with a supplied password
+  fastify.post('/invoices/:id/unlock', { preHandler: [requireAuth] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = z.object({ password: z.string().min(1) }).safeParse(request.body)
+
+    if (!body.success) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'password is required', statusCode: 400 })
+    }
+
+    const invoice = await db.invoice.findUnique({ where: { id } })
+    if (!invoice) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
+    }
+    if (invoice.status !== 'AWAITING_PASSWORD') {
+      return reply.status(409).send({ error: 'Conflict', message: 'Invoice is not awaiting a password', statusCode: 409 })
+    }
+    if (!invoice.filePath) {
+      return reply.status(422).send({ error: 'Unprocessable', message: 'Original file not available', statusCode: 422 })
+    }
+
+    // Reset to PROCESSING so the UI shows a spinner
+    await db.invoice.update({ where: { id }, data: { status: 'PROCESSING' } })
+
+    ;(async () => {
+      try {
+        const buffer = await readFile(invoice.filePath!)
+        const extracted = await runExtractor(buffer, 'application/pdf', body.data.password)
+        const validated = await runValidator(extracted)
+        await persistExtracted(id, validated)
+        fastify.log.info({ invoiceId: id }, 'Unlocked invoice processing complete')
+      } catch (err) {
+        const isWrongPassword = err instanceof PasswordProtectedError
+        fastify.log.warn({ invoiceId: id, wrongPassword: isWrongPassword }, 'Unlock failed')
+        await db.invoice.update({
+          where: { id },
+          data: { status: isWrongPassword ? 'AWAITING_PASSWORD' : 'ERROR' },
+        })
+      }
+    })()
+
+    const updated = await db.invoice.findUnique({ where: { id } })
+    return reply.status(202).send(formatInvoice(updated!))
   })
 }

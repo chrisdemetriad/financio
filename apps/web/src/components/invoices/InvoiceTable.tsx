@@ -17,6 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
   processing: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
   complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
   error: 'border-red-500/40 bg-red-500/10 text-red-300',
+  awaiting_password: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -26,6 +27,11 @@ function StatusBadge({ status }: { status: string }) {
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
           Processing
+        </span>
+      ) : status === 'awaiting_password' ? (
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-400" />
+          Locked
         </span>
       ) : (
         status

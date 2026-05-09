@@ -66,4 +66,5 @@ enum InvoiceStatus {
   PROCESSING
   COMPLETE
   ERROR
+  AWAITING_PASSWORD
 }

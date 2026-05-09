@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
+import { PasswordModal } from '@/components/invoices/PasswordModal'
 import { createApiClient } from '@/lib/api'
 import { useSettings } from '@/lib/settings'
 import { invoiceToFormat } from '@financio/exports'
@@ -37,7 +38,12 @@ export function InvoicesPage() {
   // Track IDs that were processing so we can detect completions
   const processingIds = useRef<Set<string>>(new Set())
 
-  const hasProcessing = invoices.some((inv) => inv.status === 'processing')
+  const hasProcessing = invoices.some((inv) => inv.status === 'processing') ||
+    invoices.some((inv) => inv.status === 'awaiting_password')
+
+  // Password queue — locked invoices waiting for user input
+  const passwordQueue = invoices.filter((inv) => inv.status === 'awaiting_password')
+  const currentLocked = passwordQueue[0] ?? null
 
   // Load invoices on mount
   useEffect(() => {
@@ -158,6 +164,34 @@ export function InvoicesPage() {
     toast.success('All invoices cleared')
   }
 
+  const handleUnlock = async (password: string): Promise<'ok' | 'wrong' | 'error'> => {
+    if (!currentLocked) return 'error'
+    try {
+      const updated = await api.unlockInvoice(currentLocked.id, password)
+      // Mark as processing in local state so the spinner shows
+      setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)))
+      processingIds.current.add(currentLocked.id)
+      toast.success(`Unlocked — processing ${currentLocked.fileName}`)
+      return 'ok'
+    } catch (err) {
+      const e = err as Error & { status?: number }
+      // Server resets back to AWAITING_PASSWORD on wrong password — poll will catch it
+      if (e.status === 202) return 'ok'
+      // If wrong password the server keeps AWAITING_PASSWORD status
+      const fresh = await api.getInvoices().catch(() => null)
+      if (fresh) setInvoices(fresh)
+      const stillLocked = fresh?.find((i) => i.id === currentLocked.id)?.status === 'awaiting_password'
+      return stillLocked ? 'wrong' : 'error'
+    }
+  }
+
+  const handleSkipLocked = () => {
+    // Mark it as error locally so it leaves the queue without deleting
+    setInvoices((prev) =>
+      prev.map((inv) => (inv.id === currentLocked?.id ? { ...inv, status: 'error' as const } : inv)),
+    )
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
       <div className="flex items-start justify-between">
@@ -201,6 +235,15 @@ export function InvoicesPage() {
 
       <DropZone onFiles={handleFiles} uploading={uploading} />
       <InvoiceTable invoices={invoices} visibleColumns={visibleColumns} />
+
+      {currentLocked && (
+        <PasswordModal
+          invoice={currentLocked}
+          remaining={passwordQueue.length}
+          onUnlock={handleUnlock}
+          onSkip={handleSkipLocked}
+        />
+      )}
     </div>
   )
 }
