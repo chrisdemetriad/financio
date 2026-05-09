@@ -207,6 +207,18 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(204).send()
   })
 
+  // DELETE /invoices/:id — remove a single invoice (used by the skip-locked action)
+  fastify.delete('/invoices/:id', { preHandler: [requireAuth] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const dbUserId = await resolveDbUserId(request.userId!)
+    const invoice = await db.invoice.findUnique({ where: { id } })
+    if (!invoice || invoice.userId !== dbUserId) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
+    }
+    await db.invoice.delete({ where: { id } })
+    return reply.status(204).send()
+  })
+
   // POST /invoices/:id/unlock — retry a password-protected PDF with a supplied password
   fastify.post('/invoices/:id/unlock', { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string }

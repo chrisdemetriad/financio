@@ -185,11 +185,12 @@ export function InvoicesPage() {
     }
   }
 
-  const handleSkipLocked = () => {
-    // Mark it as error locally so it leaves the queue without deleting
-    setInvoices((prev) =>
-      prev.map((inv) => (inv.id === currentLocked?.id ? { ...inv, status: 'error' as const } : inv)),
-    )
+  const handleSkipLocked = async () => {
+    if (!currentLocked) return
+    // Delete from DB so polling never brings it back
+    await api.deleteInvoice(currentLocked.id).catch(() => null)
+    setInvoices((prev) => prev.filter((inv) => inv.id !== currentLocked.id))
+    toast.info(`Skipped ${currentLocked.fileName}`)
   }
 
   return (

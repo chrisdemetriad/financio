@@ -35,6 +35,9 @@ export function createApiClient(getToken: () => Promise<string | null>) {
 
     clearInvoices: () => request<void>('/invoices', { method: 'DELETE' }, getToken),
 
+    deleteInvoice: (id: string) =>
+      request<void>(`/invoices/${id}`, { method: 'DELETE' }, getToken),
+
     unlockInvoice: (id: string, password: string) =>
       request<Invoice>(`/invoices/${id}/unlock`, {
         method: 'POST',
