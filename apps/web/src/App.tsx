@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { RouterProvider } from 'react-router-dom'
+import { ClerkProvider } from '@clerk/react'
 import { Toaster } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { createRouter } from './router'
+
+const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(true)
@@ -10,19 +13,21 @@ export default function App() {
   const router = createRouter(darkMode, () => setDarkMode((d) => !d))
 
   return (
+    <ClerkProvider publishableKey={CLERK_KEY}>
       <TooltipProvider>
-      <RouterProvider router={router} />
-      <Toaster
-        position="bottom-right"
-        theme="dark"
-        toastOptions={{
-          style: {
-            background: '#1c1e26',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: '#e2e8f0',
-          },
-        }}
-      />
-    </TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster
+          position="bottom-right"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: '#1c1e26',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#e2e8f0',
+            },
+          }}
+        />
+      </TooltipProvider>
+    </ClerkProvider>
   )
 }
