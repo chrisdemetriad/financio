@@ -17,6 +17,17 @@ const ALLOWED_MIME_TYPES = new Set([
 ])
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
 
+/** Resolve the internal DB user id from a Clerk ID, upserting the user if needed. */
+async function resolveDbUserId(clerkId: string): Promise<string> {
+  const user = await db.user.upsert({
+    where: { clerkId },
+    create: { clerkId },
+    update: {},
+    select: { id: true },
+  })
+  return user.id
+}
+
 function formatInvoice(row: {
   id: string
   userId: string | null
@@ -65,8 +76,9 @@ function formatInvoice(row: {
 export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /invoices — list all invoices for the authenticated user
   fastify.get('/invoices', { preHandler: [requireAuth] }, async (request) => {
+    const dbUserId = await resolveDbUserId(request.userId!)
     const rows = await db.invoice.findMany({
-      where: { userId: request.userId ?? undefined },
+      where: { userId: dbUserId },
       orderBy: { createdAt: 'desc' },
     })
     return rows.map(formatInvoice)
@@ -104,6 +116,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
 
     const fileHash = sha256(buffer)
 
+    // Resolve internal DB user id (clerkId → User.id)
+    const dbUserId = await resolveDbUserId(request.userId!)
+
     // Duplicate detection (commit 8)
     const existing = await db.invoice.findUnique({ where: { fileHash } })
     if (existing) {
@@ -120,7 +135,7 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
         fileName: data.filename,
         filePath,
         status: 'PROCESSING',
-        userId: request.userId ?? null,
+        userId: dbUserId,
       },
     })
 
@@ -163,8 +178,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
 
   // DELETE /invoices — clear all invoices for the authenticated user
   fastify.delete('/invoices', { preHandler: [requireAuth] }, async (request, reply) => {
+    const dbUserId = await resolveDbUserId(request.userId!)
     await db.invoice.deleteMany({
-      where: { userId: request.userId ?? undefined },
+      where: { userId: dbUserId },
     })
     return reply.status(204).send()
   })
