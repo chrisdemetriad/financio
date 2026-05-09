@@ -4,6 +4,11 @@
 
 ---
 
+> **For any agent picking this up mid-build:**
+> Read this entire file before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. The design system section defines all visual tokens. The infrastructure section defines the two-cloud split. The environment variables section lists every secret needed and when.
+
+---
+
 ## What the App Does
 
 The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent AI pipeline extracts structured data from each invoice, validates it, and fetches the vendor's logo. The results appear in a live table. The user can copy or export the data in multiple formats. All data persists until explicitly cleared.
@@ -16,6 +21,28 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 4. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
 5. **Clear** → confirmation dialog → all invoices deleted for the current user
 6. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
+
+---
+
+## Key Decisions & Rationale
+
+These decisions were made explicitly during planning. A future agent should **not** revisit or second-guess them without good reason.
+
+| Decision | Choice | Why |
+|---|---|---|
+| No Next.js | React + Vite | Internal tool — no public traffic, no SEO, no SSR needed. Next.js adds App Router complexity and deployment constraints with zero benefit here. |
+| No LangChain / Vercel AI SDK | Plain `openai` npm package | 2–3 agents = ~50 lines of async functions. No framework needed. Vercel AI SDK is unrelated to Vercel hosting but adds abstraction we'd fight. Plain SDK gives full control. |
+| REST not tRPC | REST | Simpler mental model, no codegen step, easier to test with curl/Postman, decoupled frontend and backend. |
+| Clerk deferred | Auth added at commit 5–6 | App is internal/personal. `user_id` column is **nullable** in schema from day one — do not remove it. Wire Clerk up at commits 5–6 as planned, make non-nullable then. |
+| Scale to zero | App Runner (AWS) + Cloud Run (GCP) | Side project — pay nothing when idle. Not ECS Fargate, not GKE. Both scale to zero automatically. |
+| Dual cloud purpose | AWS + GCP both active | Deliberate learning split: Terraform on AWS, Pulumi (TypeScript SDK) on GCP. Logo storage actively uses **both** S3 and GCS as a concrete cross-cloud exercise. |
+| Horizontal scaling only | More instances, not bigger ones | Containers scale horizontally. `/monitoring` shows instance *count* going up/down during k6 load tests — that is the intended scaling demo. |
+| Dark mode default | Tailwind dark class strategy | Toggle in `/settings`, persisted to `localStorage`. Dark is the default. |
+| PDF export library | `@react-pdf/renderer` not jsPDF | Defined as React components with styles — matches the app's visual language. jsPDF produces raw text. |
+| Clipboard formats (4) | CSV, JSON, TSV, Markdown | All plain string construction, no library required. Markdown pastes into Notion/Linear/GitHub. |
+| Download-only formats (2) | XLSX (SheetJS) + PDF (@react-pdf/renderer) | Require a file — not suitable for clipboard. Available both per-row and as bulk export. |
+| OpenAI model | GPT-4o mini | Cheapest OpenAI model with solid vision. ~$0.15/1M input tokens. Sufficient for printed invoice text — no need for full GPT-4o. |
+| No auth initially | Skip until Clerk commits | Zero keys needed for commits 1–4. First keys needed: Clerk (commit 5), OpenAI (commit 9), Brandfetch (commit 21). |
 
 ---
 
