@@ -1,0 +1,45 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build outputs
+dist
+build
+.next
+.turbo
+
+# environment files
+.env
+.env.local
+.env.*.local
+
+# database
+*.db
+*.sqlite
+prisma/migrations/dev.db
+
+# generated
+generated/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# testing
+playwright-report
+test-results
+coverage
+
+# terraform
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# pulumi
+.pulumi/
