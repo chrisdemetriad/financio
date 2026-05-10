@@ -2,6 +2,7 @@ import { MoreHorizontal, Download, FileText, Sheet, FileJson, Table2 } from 'luc
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -31,37 +32,41 @@ export function InvoiceRowActions({ invoice, onViewDetails }: InvoiceRowActionsP
         className="w-48 border-border bg-surface text-slate-300"
         onClick={(e) => e.stopPropagation()}
       >
-        <DropdownMenuLabel className="text-xs text-slate-500">Actions</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => onViewDetails(invoice)}>
-          <FileText className="mr-2 h-3.5 w-3.5" />
-          View details
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-slate-500">Actions</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => onViewDetails(invoice)}>
+            <FileText className="mr-2 h-3.5 w-3.5" />
+            View details
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator className="bg-border" />
-        <DropdownMenuLabel className="text-xs text-slate-500">Download as</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => downloadCsv(invoices)}>
-          <Table2 className="mr-2 h-3.5 w-3.5" />
-          CSV
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => downloadTsv(invoices)}>
-          <Table2 className="mr-2 h-3.5 w-3.5" />
-          TSV
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => downloadJson(invoices)}>
-          <FileJson className="mr-2 h-3.5 w-3.5" />
-          JSON
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => downloadMarkdown(invoices)}>
-          <FileText className="mr-2 h-3.5 w-3.5" />
-          Markdown
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => downloadXlsx(invoices)}>
-          <Sheet className="mr-2 h-3.5 w-3.5" />
-          XLSX
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => downloadPdf(invoices)}>
-          <Download className="mr-2 h-3.5 w-3.5" />
-          PDF
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-slate-500">Download as</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => downloadCsv(invoices)}>
+            <Table2 className="mr-2 h-3.5 w-3.5" />
+            CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadTsv(invoices)}>
+            <Table2 className="mr-2 h-3.5 w-3.5" />
+            TSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadJson(invoices)}>
+            <FileJson className="mr-2 h-3.5 w-3.5" />
+            JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadMarkdown(invoices)}>
+            <FileText className="mr-2 h-3.5 w-3.5" />
+            Markdown
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadXlsx(invoices)}>
+            <Sheet className="mr-2 h-3.5 w-3.5" />
+            XLSX
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadPdf(invoices)}>
+            <Download className="mr-2 h-3.5 w-3.5" />
+            PDF
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

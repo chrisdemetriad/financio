@@ -114,16 +114,14 @@ export function SettingsPage() {
               role="switch"
               aria-checked={darkMode}
               className={cn(
-                'relative h-6 w-11 rounded-full border transition-colors',
-                darkMode
-                  ? 'border-accent/50 bg-accent/20'
-                  : 'border-white/20 bg-white/10',
+                'relative h-7 w-12 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                darkMode ? 'bg-accent' : 'bg-white/15',
               )}
             >
               <span
                 className={cn(
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
-                  darkMode ? 'translate-x-5' : 'translate-x-0.5',
+                  'absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200',
+                  darkMode ? 'translate-x-6' : 'translate-x-1',
                 )}
               />
             </button>
