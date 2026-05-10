@@ -1,0 +1,75 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for Workload Identity Federation
+  contents: read
+
+env:
+  GCP_PROJECT: financio-495909
+  GCP_REGION: europe-west1
+  APP_NAME: financio
+  ARTIFACT_REPO: financio-api
+
+jobs:
+  deploy:
+    name: Build → Artifact Registry → Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: pnpm
+
+      # Keyless auth via Workload Identity Federation
+      - name: Authenticate to GCP (Workload Identity)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        env:
+          IMAGE_BASE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${{ env.APP_NAME }}-api
+        run: |
+          docker build \
+            -f Dockerfile.api \
+            -t $IMAGE_BASE:${{ env.IMAGE_TAG }} \
+            -t $IMAGE_BASE:latest \
+            .
+          docker push $IMAGE_BASE:${{ env.IMAGE_TAG }}
+          docker push $IMAGE_BASE:latest
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE_BASE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${{ env.APP_NAME }}-api
+        run: |
+          gcloud run deploy ${{ env.APP_NAME }}-api \
+            --image $IMAGE_BASE:${{ env.IMAGE_TAG }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --quiet
+
+          echo "Deployment complete."
+          gcloud run services describe ${{ env.APP_NAME }}-api \
+            --region ${{ env.GCP_REGION }} \
+            --format "value(status.url)"

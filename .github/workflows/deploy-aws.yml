@@ -1,0 +1,70 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for OIDC token
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  APP_NAME: financio
+
+jobs:
+  deploy:
+    name: Build → ECR → App Runner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: pnpm
+
+      # Keyless auth via OIDC — no AWS_ACCESS_KEY_ID stored in secrets
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          docker build \
+            -f Dockerfile.api \
+            -t $ECR_REGISTRY/${{ env.APP_NAME }}-api:${{ env.IMAGE_TAG }} \
+            -t $ECR_REGISTRY/${{ env.APP_NAME }}-api:latest \
+            .
+          docker push $ECR_REGISTRY/${{ env.APP_NAME }}-api:${{ env.IMAGE_TAG }}
+          docker push $ECR_REGISTRY/${{ env.APP_NAME }}-api:latest
+
+      - name: Deploy to App Runner
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services \
+            --query "ServiceSummaryList[?ServiceName=='${{ env.APP_NAME }}-api'].ServiceArn" \
+            --output text)
+
+          aws apprunner start-deployment \
+            --service-arn $SERVICE_ARN
+
+          echo "Deployment started — App Runner will pull the new image."
+          echo "Monitor at: https://console.aws.amazon.com/apprunner"
