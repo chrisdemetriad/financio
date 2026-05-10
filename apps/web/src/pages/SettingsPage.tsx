@@ -1,5 +1,6 @@
 import { Sun, Moon, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Switch } from '@/components/ui/switch'
 import { useSettings, ALL_COLUMNS, type ColumnId } from '@/lib/settings'
 import type { ExportFormat } from '@financio/types'
 
@@ -108,23 +109,7 @@ export function SettingsPage() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={toggleDark}
-              role="switch"
-              aria-checked={darkMode}
-              className={cn(
-                'relative h-6 w-11 rounded-full transition-colors duration-200',
-                darkMode ? 'bg-accent' : 'bg-white/15',
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200',
-                  darkMode ? 'translate-x-5' : 'translate-x-0.5',
-                )}
-              />
-            </button>
+            <Switch checked={darkMode} onCheckedChange={toggleDark} />
           </div>
         </SettingsCard>
       </section>

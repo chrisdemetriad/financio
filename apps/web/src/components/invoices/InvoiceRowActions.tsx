@@ -5,7 +5,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { downloadCsv, downloadTsv, downloadJson, downloadMarkdown, downloadXlsx, downloadPdf } from '@/lib/download'
@@ -29,11 +28,11 @@ export function InvoiceRowActions({ invoice, onViewDetails }: InvoiceRowActionsP
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="min-w-52 overflow-hidden rounded-xl border border-white/8 bg-surface p-1.5 shadow-2xl"
+        className="min-w-52 overflow-hidden rounded-xl border border-white/[0.06] bg-surface p-1.5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
+          <DropdownMenuLabel className="px-2 py-1.5 text-xs text-slate-500">
             Actions
           </DropdownMenuLabel>
           <DropdownMenuItem
@@ -44,9 +43,8 @@ export function InvoiceRowActions({ invoice, onViewDetails }: InvoiceRowActionsP
             View details
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator className="my-1 -mx-1.5 h-px bg-white/6" />
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
+          <DropdownMenuLabel className="px-2 py-1.5 text-xs text-slate-500">
             Download as
           </DropdownMenuLabel>
           {[
