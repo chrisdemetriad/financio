@@ -1,14 +1,13 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
-import staticFiles from '@fastify/static'
-import path from 'node:path'
 import { clerkAuth } from './plugins/clerk.js'
 import { healthRoutes } from './routes/health.js'
 import { authRoutes } from './routes/auth.js'
 import { invoiceRoutes } from './routes/invoices.js'
 import { settingsRoutes } from './routes/settings.js'
 import { metricsRoutes } from './routes/metrics.js'
+import { proxyLogo } from './lib/logoStorage.js'
 
 const server = Fastify({
   logger: {
@@ -26,11 +25,14 @@ await server.register(cors, {
 
 await server.register(multipart)
 
-// Serve locally stored logos (dev fallback when no S3/GCS configured)
-await server.register(staticFiles, {
-  root: path.join(process.cwd(), 'uploads', 'logos'),
-  prefix: '/logos/',
-  decorateReply: false,
+// Serve logos from whichever backend is configured (local disk / S3 / GCS)
+server.get('/logos/:filename', async (request, reply) => {
+  const { filename } = request.params as { filename: string }
+  try {
+    await proxyLogo(filename, reply)
+  } catch {
+    reply.status(404).send({ error: 'Not Found', message: 'Logo not found', statusCode: 404 })
+  }
 })
 
 await server.register(clerkAuth)

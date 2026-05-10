@@ -7,6 +7,7 @@ import { sha256 } from '../lib/hash.js'
 import { runExtractor, PasswordProtectedError } from '../agents/extractor.js'
 import { runValidator } from '../agents/validator.js'
 import { runLogoAgent } from '../agents/logo.js'
+import { deleteLogo } from '../lib/logoStorage.js'
 import { db } from '../lib/db.js'
 import type { Invoice } from '@financio/types'
 
@@ -60,7 +61,11 @@ function formatInvoice(row: {
     fileName: row.fileName,
     vendor: row.vendor,
     vendorDomain: row.vendorDomain,
-    logoUrl: row.logoUrl,
+    logoUrl: row.logoUrl
+      ? row.logoUrl.startsWith('/')
+        ? `${process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3001}`}${row.logoUrl}`
+        : row.logoUrl   // legacy full URLs — pass through unchanged
+      : null,
     invoiceNumber: row.invoiceNumber,
     invoiceDate: row.invoiceDate?.toISOString().slice(0, 10) ?? null,
     dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
@@ -201,9 +206,21 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
   // DELETE /invoices — clear all invoices for the authenticated user
   fastify.delete('/invoices', { preHandler: [requireAuth] }, async (request, reply) => {
     const dbUserId = await resolveDbUserId(request.userId!)
-    await db.invoice.deleteMany({
+    // Collect unique logo paths before deleting rows
+    const rows = await db.invoice.findMany({
       where: { userId: dbUserId },
+      select: { logoUrl: true },
     })
+    const logoPaths = [...new Set(rows.map((r) => r.logoUrl).filter(Boolean))] as string[]
+
+    await db.invoice.deleteMany({ where: { userId: dbUserId } })
+
+    // Delete logo files in background (don't block the response)
+    Promise.allSettled(logoPaths.map((p) => {
+      const rel = p.startsWith('/') ? p : null
+      return rel ? deleteLogo(rel) : Promise.resolve()
+    })).catch(() => null)
+
     return reply.status(204).send()
   })
 

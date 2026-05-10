@@ -7,7 +7,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Search, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -60,6 +60,27 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+const VendorAvatar = memo(function VendorAvatar({ vendor, logoUrl }: { vendor: string | null; logoUrl: string | null }) {
+  const [imgError, setImgError] = useState(false)
+  const initials = vendor?.slice(0, 2).toUpperCase() ?? '?'
+
+  if (logoUrl && !imgError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={vendor ?? ''}
+        className="h-7 w-7 rounded-md object-contain p-0.5 ring-1 ring-white/10"
+        onError={() => setImgError(true)}
+      />
+    )
+  }
+  return (
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/6 text-[10px] font-bold uppercase tracking-wide text-slate-400 ring-1 ring-white/8">
+      {initials}
+    </div>
+  )
+})
+
 function fmt(date: string | null) {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -81,7 +102,9 @@ interface InvoiceTableProps {
 }
 
 export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: InvoiceTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
+  // Default sort: invoiceDate desc (always visible). Never sort by a column that
+  // might be hidden — TanStack throws "[Table] Column with id X does not exist".
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
   const [globalFilter, setGlobalFilter] = useState('')
 
   const allColumns: ColumnDef<Invoice>[] = [
@@ -91,19 +114,8 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       cell: ({ row }) => {
         const { vendor, vendorDomain, logoUrl } = row.original
         return (
-          <div className="flex min-w-[140px] items-center gap-2.5">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={vendor ?? ''}
-                className="h-7 w-7 rounded-md object-contain p-0.5 ring-1 ring-white/10"
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
-              />
-            ) : (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/6 text-[10px] font-bold uppercase tracking-wide text-slate-400 ring-1 ring-white/8">
-                {vendor?.slice(0, 2) ?? '?'}
-              </div>
-            )}
+            <div className="flex min-w-[140px] items-center gap-2.5">
+            <VendorAvatar vendor={vendor} logoUrl={logoUrl} />
             <div>
               <p className="text-sm font-medium text-slate-200">{vendor ?? '—'}</p>
               {vendorDomain && (
