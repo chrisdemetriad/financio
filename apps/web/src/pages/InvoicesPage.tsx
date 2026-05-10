@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@clerk/react'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Download, Command } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,16 +16,20 @@ import {
 import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
 import { PasswordModal } from '@/components/invoices/PasswordModal'
+import { InvoiceDetailSheet } from '@/components/invoices/InvoiceDetailSheet'
+import { CommandPalette } from '@/components/CommandPalette'
+import { ShortcutsModal } from '@/components/ShortcutsModal'
 import { createApiClient } from '@/lib/api'
 import { useSettings } from '@/lib/settings'
+import { downloadByFormat } from '@/lib/download'
 import { invoiceToFormat } from '@financio/exports'
-import type { Invoice } from '@financio/types'
+import type { ExportFormat, Invoice } from '@financio/types'
+
+const POLL_INTERVAL_MS = 3000
 
 async function copyToClipboard(text: string): Promise<void> {
   await navigator.clipboard.writeText(text)
 }
-
-const POLL_INTERVAL_MS = 3000
 
 export function InvoicesPage() {
   const { getToken } = useAuth()
@@ -34,14 +38,15 @@ export function InvoicesPage() {
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [showPalette, setShowPalette] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // Track IDs that were processing so we can detect completions
   const processingIds = useRef<Set<string>>(new Set())
+  const dropZoneRef = useRef<HTMLInputElement | null>(null)
 
   const hasProcessing = invoices.some((inv) => inv.status === 'processing') ||
     invoices.some((inv) => inv.status === 'awaiting_password')
-
-  // Password queue — locked invoices waiting for user input
   const passwordQueue = invoices.filter((inv) => inv.status === 'awaiting_password')
   const currentLocked = passwordQueue[0] ?? null
 
@@ -64,72 +69,69 @@ export function InvoicesPage() {
         pollRef.current = setInterval(async () => {
           try {
             const fresh = await api.getInvoices()
-
-            // Find newly-completed invoices (were processing, now complete)
             const justCompleted = fresh.filter(
               (inv) => inv.status === 'complete' && processingIds.current.has(inv.id),
             )
-
             if (justCompleted.length > 0) {
-              // Remove from tracking set
-              for (const inv of justCompleted) {
-                processingIds.current.delete(inv.id)
-              }
-
-              // Copy to clipboard
-              const text = justCompleted
-                .map((inv) => invoiceToFormat(inv, exportFormat))
-                .join('\n')
+              for (const inv of justCompleted) processingIds.current.delete(inv.id)
+              const text = justCompleted.map((inv) => invoiceToFormat(inv, exportFormat)).join('\n')
               await copyToClipboard(text).catch(() => null)
-
               const count = justCompleted.length
-              const fmt = exportFormat.toUpperCase()
-              toast.success(
-                `${count} entr${count > 1 ? 'ies' : 'y'} copied to clipboard as ${fmt}`,
-                { duration: 4000 },
-              )
+              toast.success(`${count} entr${count > 1 ? 'ies' : 'y'} copied to clipboard as ${exportFormat.toUpperCase()}`, { duration: 4000 })
             }
-
             setInvoices(fresh)
-          } catch {
-            // silent — polling errors should not disrupt the UI
-          }
+            // Keep selected invoice in sync
+            if (selectedInvoice) {
+              const updated = fresh.find((i) => i.id === selectedInvoice.id)
+              if (updated) setSelectedInvoice(updated)
+            }
+          } catch { /* silent */ }
         }, POLL_INTERVAL_MS)
       }
     } else {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [hasProcessing, api, exportFormat, selectedInvoice])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA'
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowPalette((v) => !v)
+        return
       }
+      if (e.key === 'Escape') {
+        setShowPalette(false); setShowShortcuts(false); setSelectedInvoice(null)
+        return
+      }
+      if (typing) return
+      if (e.key === '?') { setShowShortcuts(true); return }
+      if (e.key === 'u' || e.key === 'U') { dropZoneRef.current?.click(); return }
     }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [hasProcessing, api, exportFormat])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const handleFiles = useCallback(
     async (files: File[]) => {
       setUploading(true)
       const results = await Promise.allSettled(files.map((f) => api.uploadInvoice(f)))
-
-      let added = 0
-      let duplicates = 0
-
+      let added = 0, duplicates = 0
       for (const result of results) {
         if (result.status === 'fulfilled') {
           const { invoice, duplicate } = result.value
-          if (duplicate) {
-            duplicates++
-          } else {
+          if (duplicate) { duplicates++ }
+          else {
             added++
             processingIds.current.add(invoice.id)
             setInvoices((prev) => {
               const idx = prev.findIndex((i) => i.id === invoice.id)
-              if (idx >= 0) {
-                const copy = [...prev]
-                copy[idx] = invoice
-                return copy
-              }
+              if (idx >= 0) { const copy = [...prev]; copy[idx] = invoice; return copy }
               return [invoice, ...prev]
             })
           }
@@ -138,18 +140,12 @@ export function InvoicesPage() {
           if (err.status === 409 && err.body) {
             duplicates++
             const dup = (err.body as { invoice?: Invoice }).invoice
-            if (dup) {
-              setInvoices((prev) => {
-                if (prev.find((i) => i.id === dup.id)) return prev
-                return [dup, ...prev]
-              })
-            }
+            if (dup) setInvoices((prev) => prev.find((i) => i.id === dup.id) ? prev : [dup, ...prev])
           } else {
             toast.error(`Failed to upload: ${err.message}`)
           }
         }
       }
-
       setUploading(false)
       if (added) toast.success(`${added} invoice${added > 1 ? 's' : ''} queued for processing`)
       if (duplicates) toast.info(`${duplicates} duplicate${duplicates > 1 ? 's' : ''} skipped`)
@@ -161,6 +157,7 @@ export function InvoicesPage() {
     await api.clearInvoices()
     processingIds.current.clear()
     setInvoices([])
+    setSelectedInvoice(null)
     toast.success('All invoices cleared')
   }
 
@@ -168,16 +165,11 @@ export function InvoicesPage() {
     if (!currentLocked) return 'error'
     try {
       const updated = await api.unlockInvoice(currentLocked.id, password)
-      // Mark as processing in local state so the spinner shows
-      setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)))
+      setInvoices((prev) => prev.map((inv) => inv.id === updated.id ? updated : inv))
       processingIds.current.add(currentLocked.id)
       toast.success(`Unlocked — processing ${currentLocked.fileName}`)
       return 'ok'
     } catch (err) {
-      const e = err as Error & { status?: number }
-      // Server resets back to AWAITING_PASSWORD on wrong password — poll will catch it
-      if (e.status === 202) return 'ok'
-      // If wrong password the server keeps AWAITING_PASSWORD status
       const fresh = await api.getInvoices().catch(() => null)
       if (fresh) setInvoices(fresh)
       const stillLocked = fresh?.find((i) => i.id === currentLocked.id)?.status === 'awaiting_password'
@@ -187,56 +179,92 @@ export function InvoicesPage() {
 
   const handleSkipLocked = async () => {
     if (!currentLocked) return
-    // Delete from DB so polling never brings it back
     await api.deleteInvoice(currentLocked.id).catch(() => null)
     setInvoices((prev) => prev.filter((inv) => inv.id !== currentLocked.id))
     toast.info(`Skipped ${currentLocked.fileName}`)
   }
 
+  const handleBulkExport = (format: ExportFormat | 'xlsx' | 'pdf') => {
+    const completed = invoices.filter((i) => i.status === 'complete')
+    if (!completed.length) { toast.info('No completed invoices to export'); return }
+    downloadByFormat(completed, format)
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-lg font-semibold text-white">Invoices</h1>
-          <p className="mt-0.5 text-sm text-slate-400">
-            Drop invoice files to extract and manage them.
-          </p>
+          <p className="mt-0.5 text-sm text-slate-400">Drop invoice files to extract and manage them.</p>
         </div>
-        {invoices.length > 0 && (
-          <AlertDialog>
-            <AlertDialogTrigger
-              className="inline-flex h-8 items-center gap-2 rounded-md border border-white/8 px-3 text-sm text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400"
+        <div className="flex items-center gap-2">
+          {/* Bulk export */}
+          {invoices.some((i) => i.status === 'complete') && (
+            <button
+              type="button"
+              onClick={() => handleBulkExport(exportFormat as ExportFormat | 'xlsx' | 'pdf')}
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-border px-3 text-sm text-slate-400 transition-colors hover:border-accent/40 hover:text-accent"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear all
-            </AlertDialogTrigger>
-            <AlertDialogContent className="border-white/8 bg-surface">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-slate-100">Clear all invoices?</AlertDialogTitle>
-                <AlertDialogDescription className="text-slate-400">
-                  This will permanently delete all {invoices.length} invoice
-                  {invoices.length > 1 ? 's' : ''} from the database. This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="border-white/8 bg-transparent text-slate-300 hover:bg-white/5">
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600 text-white hover:bg-red-700"
-                  onClick={handleClear}
-                >
-                  Delete all
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+              <Download className="h-3.5 w-3.5" />
+              Export {exportFormat.toUpperCase()}
+            </button>
+          )}
+          {/* ⌘K hint */}
+          <button
+            type="button"
+            onClick={() => setShowPalette(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
+          >
+            <Command className="h-3 w-3" />K
+          </button>
+          {/* Clear all */}
+          {invoices.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger className="inline-flex h-8 items-center gap-2 rounded-md border border-white/8 px-3 text-sm text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400">
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear all
+              </AlertDialogTrigger>
+              <AlertDialogContent className="border-white/8 bg-surface">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-slate-100">Clear all invoices?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-400">
+                    This will permanently delete all {invoices.length} invoice{invoices.length > 1 ? 's' : ''} from the database. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-white/8 bg-transparent text-slate-300 hover:bg-white/5">Cancel</AlertDialogCancel>
+                  <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleClear}>
+                    Delete all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </div>
 
-      <DropZone onFiles={handleFiles} uploading={uploading} />
-      <InvoiceTable invoices={invoices} visibleColumns={visibleColumns} />
+      {/* Hidden file input for U shortcut */}
+      <input
+        ref={dropZoneRef}
+        type="file"
+        multiple
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.heic"
+        className="hidden"
+        onChange={(e) => { if (e.target.files?.length) handleFiles(Array.from(e.target.files)) }}
+      />
 
+      <DropZone onFiles={handleFiles} uploading={uploading} />
+      <InvoiceTable
+        invoices={invoices}
+        visibleColumns={visibleColumns}
+        onViewDetails={setSelectedInvoice}
+      />
+
+      {/* Detail sheet */}
+      <InvoiceDetailSheet invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
+
+      {/* Password modal queue */}
       {currentLocked && (
         <PasswordModal
           invoice={currentLocked}
@@ -245,6 +273,20 @@ export function InvoicesPage() {
           onSkip={handleSkipLocked}
         />
       )}
+
+      {/* Command palette */}
+      <CommandPalette
+        open={showPalette}
+        onOpenChange={setShowPalette}
+        onUpload={() => dropZoneRef.current?.click()}
+        onClearAll={() => { setShowPalette(false); handleClear() }}
+        onExport={handleBulkExport}
+        onShowShortcuts={() => setShowShortcuts(true)}
+        hasInvoices={invoices.some((i) => i.status === 'complete')}
+      />
+
+      {/* Shortcuts modal */}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   )
 }
