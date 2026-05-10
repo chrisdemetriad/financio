@@ -1,0 +1,15 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to source control.
+
+aws_region  = "eu-west-2"
+environment = "prod"
+app_name    = "financio"
+
+db_username = "financio"
+db_password = "CHANGE_ME_strong_password_here"
+
+cors_origin = "https://YOUR_FRONTEND_DOMAIN"
+
+clerk_secret_key   = "sk_live_..."
+openai_api_key     = "sk-proj-..."
+brandfetch_api_key = "..."
