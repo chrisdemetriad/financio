@@ -1,4 +1,4 @@
-import type { Invoice, UploadResponse, UserSettings } from '@financio/types'
+import type { Invoice, MetricsResponse, UploadResponse, UserSettings } from '@financio/types'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -53,6 +53,8 @@ export function createApiClient(getToken: () => Promise<string | null>) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       }, getToken),
+
+    getMetrics: () => request<MetricsResponse>('/metrics', {}, getToken),
   }
 }
 

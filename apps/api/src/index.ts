@@ -8,6 +8,7 @@ import { healthRoutes } from './routes/health.js'
 import { authRoutes } from './routes/auth.js'
 import { invoiceRoutes } from './routes/invoices.js'
 import { settingsRoutes } from './routes/settings.js'
+import { metricsRoutes } from './routes/metrics.js'
 
 const server = Fastify({
   logger: {
@@ -37,6 +38,7 @@ await server.register(healthRoutes)
 await server.register(authRoutes)
 await server.register(invoiceRoutes)
 await server.register(settingsRoutes)
+await server.register(metricsRoutes)
 
 const port = Number(process.env.PORT ?? 3001)
 const host = process.env.HOST ?? '0.0.0.0'
