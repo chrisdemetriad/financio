@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
 
+/* Tie Tailwind's dark: variant to the .dark class the app toggles */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* Brand palette */
   --color-accent: #4f7dfa;

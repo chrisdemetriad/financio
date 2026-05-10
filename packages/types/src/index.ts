@@ -32,6 +32,7 @@ export interface Invoice {
   vendor: string | null
   vendorDomain: string | null
   logoUrl: string | null
+  logoBgColor: string | null
   invoiceNumber: string | null
   invoiceDate: string | null
   dueDate: string | null

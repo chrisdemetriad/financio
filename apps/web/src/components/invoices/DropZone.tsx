@@ -43,7 +43,7 @@ export function DropZone({ onFiles, uploading }: DropZoneProps) {
         'flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed transition-colors',
         isDragActive && !isDragReject && 'border-violet-500/70 bg-violet-500/[0.06]',
         isDragReject && 'border-red-500/60 bg-red-500/[0.05]',
-        !isDragActive && !isDragReject && 'border-white/[0.10] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.03]',
+        !isDragActive && !isDragReject && 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/2 hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-100 dark:hover:bg-white/3',
         uploading && 'cursor-not-allowed opacity-50',
       )}
     >
@@ -74,7 +74,7 @@ export function DropZone({ onFiles, uploading }: DropZoneProps) {
             )}
           />
           <div className="text-center">
-            <p className={cn('text-sm font-medium', isDragActive ? 'text-violet-300' : 'text-slate-300')}>
+            <p className={cn('text-sm font-medium', isDragActive ? 'text-violet-600 dark:text-violet-300' : 'text-slate-600 dark:text-slate-300')}>
               {uploading ? 'Uploading…' : isDragActive ? 'Drop to upload' : 'Drop invoices here'}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">

@@ -8,10 +8,10 @@ interface InvoiceDetailSheetProps {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  processing: 'bg-amber-500/15 text-amber-300',
-  complete: 'bg-emerald-500/15 text-emerald-300',
-  error: 'bg-red-500/15 text-red-300',
-  awaiting_password: 'bg-violet-500/15 text-violet-300',
+  processing: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  complete: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  error: 'bg-red-500/15 text-red-700 dark:text-red-300',
+  awaiting_password: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
 }
 
 function conf(value: number | null | undefined): { color: string; label: string } {
@@ -41,12 +41,12 @@ function Field({
         'flex items-start justify-between gap-3 rounded-lg px-3 py-2.5',
         !isEmpty && confidence !== undefined && confidence !== null && confidence < 0.6
           ? 'bg-amber-500/8'
-          : 'bg-white/[0.02]',
+          : 'bg-slate-50 dark:bg-white/2',
       )}
     >
       <div className="min-w-0">
         <p className="text-xs text-slate-500">{label}</p>
-        <p className={cn('mt-0.5 text-sm', isEmpty ? 'text-slate-600 italic' : 'text-slate-200', mono && 'font-mono')}>
+        <p className={cn('mt-0.5 text-sm', isEmpty ? 'text-slate-400 dark:text-slate-600 italic' : 'text-slate-800 dark:text-slate-200', mono && 'font-mono')}>
           {isEmpty ? 'Not detected' : String(value)}
         </p>
       </div>
@@ -79,7 +79,7 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
         {/* Header */}
         <div className="flex items-start gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-100" title={invoice.fileName}>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100" title={invoice.fileName}>
               {invoice.fileName}
             </p>
             <div className="mt-1 flex items-center gap-2">
@@ -96,7 +96,7 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-white/5 hover:text-slate-300"
+            className="shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-300"
           >
             <X className="h-4 w-4" />
           </button>
@@ -109,14 +109,19 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
             <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Vendor</p>
             <div className="flex items-center gap-3">
               {invoice.logoUrl && (
-                <img
-                  src={invoice.logoUrl}
-                  alt={invoice.vendor ?? ''}
-                  className="h-10 w-10 rounded-lg object-contain p-1 ring-1 ring-white/10"
-                />
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: invoice.logoBgColor ?? '#1c1e26' }}
+                >
+                  <img
+                    src={invoice.logoUrl}
+                    alt={invoice.vendor ?? ''}
+                    className="h-7 w-7 object-contain"
+                  />
+                </div>
               )}
               <div>
-                <p className="text-sm font-semibold text-slate-100">{invoice.vendor ?? 'Unknown vendor'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{invoice.vendor ?? 'Unknown vendor'}</p>
                 {invoice.vendorDomain && (
                   <a
                     href={`https://${invoice.vendorDomain}`}
@@ -161,9 +166,9 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
               </p>
               <div className="space-y-1 rounded-lg border border-border overflow-hidden">
                 {invoice.lineItems.map((item, i) => (
-                  <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 odd:bg-white/[0.02]">
-                    <p className="text-xs text-slate-300">{item.description}</p>
-                    <p className="shrink-0 font-mono text-xs text-slate-300">
+                  <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 odd:bg-slate-50 dark:odd:bg-white/2">
+                    <p className="text-xs text-slate-700 dark:text-slate-300">{item.description}</p>
+                    <p className="shrink-0 font-mono text-xs text-slate-700 dark:text-slate-300">
                       {invoice.currency ?? ''} {item.total}
                     </p>
                   </div>

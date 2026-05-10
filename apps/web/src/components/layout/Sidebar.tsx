@@ -15,12 +15,12 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
+      <NavLink to="/" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
           F
         </div>
-        <span className="text-sm font-semibold tracking-tight text-white">Financio</span>
-      </div>
+        <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Financio</span>
+      </NavLink>
 
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
@@ -34,7 +34,7 @@ export function Sidebar() {
                 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
                 isActive
                   ? 'bg-accent/15 text-accent'
-                  : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200',
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/4 hover:text-slate-800 dark:hover:text-slate-200',
               )
             }
           >
@@ -48,7 +48,7 @@ export function Sidebar() {
       <div className="border-t border-border p-4">
         <button
           onClick={toggleDark}
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-slate-200"
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-white/4 hover:text-slate-800 dark:hover:text-slate-200"
         >
           {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {darkMode ? 'Light mode' : 'Dark mode'}

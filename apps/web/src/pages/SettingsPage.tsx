@@ -14,7 +14,7 @@ const EXPORT_OPTIONS: { value: ExportFormat; label: string; description: string 
 function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
+      <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h2>
       <p className="mt-0.5 text-xs text-slate-500">{description}</p>
     </div>
   )
@@ -35,7 +35,7 @@ export function SettingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-8 overflow-auto p-6">
       <div>
-        <h1 className="text-lg font-semibold text-white">Settings</h1>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Settings</h1>
         <p className="mt-0.5 text-sm text-slate-400">
           Configure export format and display preferences.
         </p>
@@ -60,7 +60,7 @@ export function SettingsPage() {
                     'flex items-start gap-3 rounded-lg border p-3.5 text-left transition-all',
                     active
                       ? 'border-accent/60 bg-accent/10'
-                      : 'border-border hover:border-white/20 hover:bg-white/3',
+                      : 'border-border hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/3',
                   )}
                 >
                   <span
@@ -68,13 +68,13 @@ export function SettingsPage() {
                       'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]',
                       active
                         ? 'border-accent bg-accent text-white'
-                        : 'border-white/20',
+                        : 'border-slate-300 dark:border-white/20',
                     )}
                   >
                     {active && <Check className="h-2.5 w-2.5" />}
                   </span>
                   <div>
-                    <p className={cn('text-sm font-medium', active ? 'text-accent' : 'text-slate-200')}>
+                    <p className={cn('text-sm font-medium', active ? 'text-accent' : 'text-slate-700 dark:text-slate-200')}>
                       {label}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">{description}</p>
@@ -101,7 +101,7 @@ export function SettingsPage() {
                 <Sun className="h-5 w-5 text-amber-400" />
               )}
               <div>
-                <p className="text-sm font-medium text-slate-200">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
                   {darkMode ? 'Dark mode' : 'Light mode'}
                 </p>
                 <p className="text-xs text-slate-500">
@@ -129,19 +129,19 @@ export function SettingsPage() {
                   key={id}
                   type="button"
                   onClick={() => toggleColumn(id as ColumnId)}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-white/3"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-white/3"
                 >
                   <span
                     className={cn(
                       'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-                      visible
-                        ? 'border-accent bg-accent text-white'
-                        : 'border-white/20 bg-transparent',
+                        visible
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-slate-300 dark:border-white/20 bg-transparent',
                     )}
                   >
                     {visible && <Check className="h-2.5 w-2.5" />}
                   </span>
-                  <span className="text-sm text-slate-300">{label}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
                 </button>
               )
             })}

@@ -195,8 +195,8 @@ export function InvoicesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-white">Invoices</h1>
-          <p className="mt-0.5 text-sm text-slate-400">Drop invoice files to extract and manage them.</p>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Invoices</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Drop invoice files to extract and manage them.</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Bulk export */}
@@ -214,26 +214,26 @@ export function InvoicesPage() {
           <button
             type="button"
             onClick={() => setShowPalette(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-slate-500 transition-colors hover:border-slate-300 dark:hover:border-white/20 hover:text-slate-700 dark:hover:text-slate-300"
           >
             <Command className="h-3 w-3" />K
           </button>
           {/* Clear all */}
           {invoices.length > 0 && (
             <AlertDialog>
-              <AlertDialogTrigger className="inline-flex h-8 items-center gap-2 rounded-md border border-white/8 px-3 text-sm text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400">
+              <AlertDialogTrigger className="inline-flex h-8 items-center gap-2 rounded-md border border-border px-3 text-sm text-slate-500 dark:text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-500 dark:hover:text-red-400">
                 <Trash2 className="h-3.5 w-3.5" />
                 Clear all
               </AlertDialogTrigger>
               <AlertDialogContent className="border-white/8 bg-surface">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-slate-100">Clear all invoices?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-slate-400">
+                  <AlertDialogTitle className="text-slate-900 dark:text-slate-100">Clear all invoices?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-500 dark:text-slate-400">
                     This will permanently delete all {invoices.length} invoice{invoices.length > 1 ? 's' : ''} from the database. This cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="border-white/8 bg-transparent text-slate-300 hover:bg-white/5">Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="border-border bg-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5">Cancel</AlertDialogCancel>
                   <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleClear}>
                     Delete all
                   </AlertDialogAction>

@@ -16,10 +16,10 @@ import type { Invoice, InvoiceConfidence } from '@financio/types'
 import { cn } from '@/lib/utils'
 
 const STATUS_STYLES: Record<string, string> = {
-  processing: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-  complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-  error: 'border-red-500/40 bg-red-500/10 text-red-300',
-  awaiting_password: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
+  processing: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  error: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300',
+  awaiting_password: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
 }
 
 // Map column id → confidence key
@@ -60,22 +60,35 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-const VendorAvatar = memo(function VendorAvatar({ vendor, logoUrl }: { vendor: string | null; logoUrl: string | null }) {
+const VendorAvatar = memo(function VendorAvatar({
+  vendor,
+  logoUrl,
+  logoBgColor,
+}: {
+  vendor: string | null
+  logoUrl: string | null
+  logoBgColor: string | null
+}) {
   const [imgError, setImgError] = useState(false)
   const initials = vendor?.slice(0, 2).toUpperCase() ?? '?'
 
   if (logoUrl && !imgError) {
     return (
-      <img
-        src={logoUrl}
-        alt={vendor ?? ''}
-        className="h-7 w-7 rounded-md object-contain p-0.5 ring-1 ring-white/10"
-        onError={() => setImgError(true)}
-      />
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+        style={{ backgroundColor: logoBgColor ?? '#1c1e26' }}
+      >
+        <img
+          src={logoUrl}
+          alt={vendor ?? ''}
+          className="h-5 w-5 object-contain"
+          onError={() => setImgError(true)}
+        />
+      </div>
     )
   }
   return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/6 text-[10px] font-bold uppercase tracking-wide text-slate-400 ring-1 ring-white/8">
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200 dark:bg-white/6 dark:text-slate-400 dark:ring-white/8">
       {initials}
     </div>
   )
@@ -112,18 +125,18 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'vendor',
       header: 'Vendor',
       cell: ({ row }) => {
-        const { vendor, vendorDomain, logoUrl } = row.original
+        const { vendor, vendorDomain, logoUrl, logoBgColor } = row.original
         return (
             <div className="flex min-w-[140px] items-center gap-2.5">
-            <VendorAvatar vendor={vendor} logoUrl={logoUrl} />
+            <VendorAvatar vendor={vendor} logoUrl={logoUrl} logoBgColor={logoBgColor} />
             <div>
-              <p className="text-sm font-medium text-slate-200">{vendor ?? '—'}</p>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{vendor ?? '—'}</p>
               {vendorDomain && (
                 <a
                   href={`https://${vendorDomain}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-violet-400"
+                  className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-violet-600 dark:hover:text-violet-400"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {vendorDomain}
@@ -139,7 +152,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'invoiceNumber',
       header: 'Invoice #',
       cell: ({ row, getValue }) => (
-        <span className={cn('font-mono text-xs text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceNumber'))}>
+        <span className={cn('font-mono text-xs text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceNumber'))}>
           {(getValue() as string | null) ?? '—'}
         </span>
       ),
@@ -148,7 +161,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'invoiceDate',
       header: 'Date',
       cell: ({ row, getValue }) => (
-        <span className={cn('text-sm text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceDate'))}>
+        <span className={cn('text-sm text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceDate'))}>
           {fmt(getValue() as string | null)}
         </span>
       ),
@@ -157,7 +170,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'dueDate',
       header: 'Due',
       cell: ({ row, getValue }) => (
-        <span className={cn('text-sm text-slate-300 rounded px-1', confidenceBg(row.original, 'dueDate'))}>
+        <span className={cn('text-sm text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'dueDate'))}>
           {fmt(getValue() as string | null)}
         </span>
       ),
@@ -166,7 +179,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'total',
       header: () => <span className="text-right">Total</span>,
       cell: ({ row }) => (
-        <span className={cn('block text-right font-mono text-sm font-medium text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
+        <span className={cn('block text-right font-mono text-sm font-medium text-slate-900 dark:text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
           {money(row.original.total, row.original.currency)}
         </span>
       ),
@@ -175,7 +188,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       accessorKey: 'currency',
       header: 'CCY',
       cell: ({ row, getValue }) => (
-        <span className={cn('text-xs font-medium text-slate-400', confidenceBg(row.original, 'currency'))}>
+        <span className={cn('text-xs font-medium text-slate-600 dark:text-slate-400', confidenceBg(row.original, 'currency'))}>
           {(getValue() as string | null) ?? '—'}
         </span>
       ),
@@ -188,7 +201,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
     {
       accessorKey: 'createdAt',
       header: 'Uploaded',
-      cell: ({ getValue }) => <span className="text-xs text-slate-500">{fmt(getValue() as string)}</span>,
+      cell: ({ getValue }) => <span className="text-xs text-slate-500 dark:text-slate-500">{fmt(getValue() as string)}</span>,
     },
     // Actions column always visible
     {
@@ -224,19 +237,19 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
       {/* Search bar */}
       {invoices.length > 0 && (
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder="Search invoices…"
-            className="w-full rounded-lg border border-border bg-white/[0.02] py-2 pl-9 pr-9 text-sm text-slate-300 placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+            className="w-full rounded-lg border border-border bg-white dark:bg-white/2 py-2 pl-9 pr-9 text-sm text-slate-800 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
           />
           {globalFilter && (
             <button
               type="button"
               onClick={() => setGlobalFilter('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -250,7 +263,7 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
         </div>
       ) : table.getRowModel().rows.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface px-6 py-8 text-center text-sm text-slate-500">
-          No invoices match <span className="text-slate-300">"{globalFilter}"</span>
+          No invoices match <span className="text-slate-700 dark:text-slate-300">"{globalFilter}"</span>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-surface">

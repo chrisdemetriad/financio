@@ -51,13 +51,14 @@ function InstanceGrid({ count, maxCount, color }: { count: number; maxCount: num
             'flex h-8 w-8 items-center justify-center rounded-md border transition-all duration-500',
             active
               ? 'scale-100 opacity-100'
-              : 'scale-90 opacity-15',
+              : 'scale-90 opacity-40 border-slate-200 dark:border-white/10',
           )}
-          style={active ? { borderColor: `${color}40`, backgroundColor: `${color}12` } : { borderColor: '#ffffff10' }}
+          style={active ? { borderColor: `${color}40`, backgroundColor: `${color}12` } : undefined}
         >
           <Server
-            className="h-4 w-4"
-            style={{ color: active ? color : '#475569' }}
+            className={cn('h-4 w-4', !active && 'text-slate-400 dark:text-slate-500')}
+            style={active ? { color } : undefined}
+            strokeWidth={1.5}
           />
         </div>
       ))}
@@ -88,7 +89,7 @@ function CloudCard({ cloud, color, serviceName, instanceCount, history, isSimula
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-100">{cloud}</span>
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{cloud}</span>
             {isSimulated && (
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">
                 simulated
@@ -107,7 +108,7 @@ function CloudCard({ cloud, color, serviceName, instanceCount, history, isSimula
 
       {/* Big count */}
       <div className="flex items-end gap-2">
-        <span className="text-4xl font-bold tabular-nums text-slate-100">{count}</span>
+        <span className="text-4xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{count}</span>
         <div className="mb-1 flex flex-col gap-0.5">
           <span className="text-xs text-slate-500">instances</span>
           {delta !== 0 && (
@@ -180,7 +181,7 @@ export function MonitoringPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-white">Monitoring</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Monitoring</h1>
           <p className="mt-0.5 text-sm text-slate-400">
             Live instance counts across AWS and GCP — polls every {POLL_MS / 1000}s.
             {isSimulated && ' Running locally in simulation mode.'}
@@ -191,7 +192,7 @@ export function MonitoringPage() {
           {data && (
             <div className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-slate-300">{totalInstances} total instances</span>
+              <span className="text-xs text-slate-700 dark:text-slate-300">{totalInstances} total instances</span>
             </div>
           )}
           {/* Status */}
@@ -233,15 +234,15 @@ export function MonitoringPage() {
             <Activity className="h-4 w-4 text-violet-400" />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-200">Run the k6 load test to watch scaling</p>
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Run the k6 load test to watch scaling</p>
             <p className="mt-1 text-xs text-slate-500">
               Ramps to 50 virtual users over 30 seconds, then holds for 60s. Install k6 first, then:
             </p>
             <div className="mt-2 space-y-1">
-              <code className="block rounded-md bg-white/[0.04] px-3 py-2 font-mono text-xs text-slate-300">
+              <code className="block rounded-md bg-slate-100 dark:bg-white/4 px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">
                 brew install k6
               </code>
-              <code className="block rounded-md bg-white/[0.04] px-3 py-2 font-mono text-xs text-slate-300">
+              <code className="block rounded-md bg-slate-100 dark:bg-white/4 px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">
                 k6 run scripts/load-test.js -e API_URL=https://YOUR_APP_RUNNER_URL
               </code>
             </div>

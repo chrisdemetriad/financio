@@ -32,6 +32,13 @@ async function resolveDbUserId(clerkId: string): Promise<string> {
   return user.id
 }
 
+function resolveLogoUrl(raw: string | null): string | null {
+  if (!raw) return null
+  if (raw.startsWith('/'))
+    return `${process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3001}`}${raw}`
+  return raw // legacy full URLs
+}
+
 function formatInvoice(row: {
   id: string
   userId: string | null
@@ -41,6 +48,7 @@ function formatInvoice(row: {
   vendor: string | null
   vendorDomain: string | null
   logoUrl: string | null
+  logoBgColor: string | null
   invoiceNumber: string | null
   invoiceDate: Date | null
   dueDate: Date | null
@@ -61,11 +69,8 @@ function formatInvoice(row: {
     fileName: row.fileName,
     vendor: row.vendor,
     vendorDomain: row.vendorDomain,
-    logoUrl: row.logoUrl
-      ? row.logoUrl.startsWith('/')
-        ? `${process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3001}`}${row.logoUrl}`
-        : row.logoUrl   // legacy full URLs — pass through unchanged
-      : null,
+    logoUrl: resolveLogoUrl(row.logoUrl),
+    logoBgColor: row.logoBgColor,
     invoiceNumber: row.invoiceNumber,
     invoiceDate: row.invoiceDate?.toISOString().slice(0, 10) ?? null,
     dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
@@ -81,7 +86,11 @@ function formatInvoice(row: {
   }
 }
 
-async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType<typeof import('../agents/validator.js').runValidator>>, logoUrl?: string | null) {
+async function persistExtracted(
+  invoiceId: string,
+  validated: Awaited<ReturnType<typeof import('../agents/validator.js').runValidator>>,
+  logos?: { url: string | null; bgColor: string | null } | null,
+) {
   await db.invoice.update({
     where: { id: invoiceId },
     data: {
@@ -97,7 +106,10 @@ async function persistExtracted(invoiceId: string, validated: Awaited<ReturnType
       currency: validated.currency,
       confidence: validated.confidence,
       status: 'COMPLETE',
-      ...(logoUrl !== undefined && { logoUrl }),
+      ...(logos != null && {
+        logoUrl: logos.url,
+        logoBgColor: logos.bgColor,
+      }),
     },
   })
 }
@@ -183,11 +195,11 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const extracted = await runExtractor(buffer, mimeType)
         // Validator and logo agent run concurrently after extraction
-        const [validated, logoUrl] = await Promise.all([
+        const [validated, logos] = await Promise.all([
           runValidator(extracted),
           extracted.vendorDomain ? runLogoAgent(extracted.vendorDomain) : Promise.resolve(null),
         ])
-        await persistExtracted(invoice.id, validated, logoUrl)
+        await persistExtracted(invoice.id, validated, logos)
         fastify.log.info({ invoiceId: invoice.id }, 'Invoice processing complete')
       } catch (err) {
         if (err instanceof PasswordProtectedError) {
@@ -215,10 +227,11 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
 
     await db.invoice.deleteMany({ where: { userId: dbUserId } })
 
-    // Delete logo files in background (don't block the response)
+    // Delete logo files in background (don't block the response).
+    // logoUrl may be a relative path (/logos/foo.png) or a legacy full URL — normalise either way.
     Promise.allSettled(logoPaths.map((p) => {
-      const rel = p.startsWith('/') ? p : null
-      return rel ? deleteLogo(rel) : Promise.resolve()
+      const filename = p.split('/logos/').pop()
+      return filename ? deleteLogo(`/logos/${filename}`) : Promise.resolve()
     })).catch(() => null)
 
     return reply.status(204).send()
@@ -233,6 +246,12 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
     }
     await db.invoice.delete({ where: { id } })
+    for (const url of [invoice.logoUrl]) {
+      if (url) {
+        const filename = url.split('/logos/').pop()
+        if (filename) deleteLogo(`/logos/${filename}`).catch(() => null)
+      }
+    }
     return reply.status(204).send()
   })
 
@@ -263,11 +282,11 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const buffer = await readFile(invoice.filePath!)
         const extracted = await runExtractor(buffer, 'application/pdf', body.data.password)
-        const [validated, logoUrl] = await Promise.all([
+        const [validated, logos] = await Promise.all([
           runValidator(extracted),
           extracted.vendorDomain ? runLogoAgent(extracted.vendorDomain) : Promise.resolve(null),
         ])
-        await persistExtracted(id, validated, logoUrl)
+        await persistExtracted(id, validated, logos)
         fastify.log.info({ invoiceId: id }, 'Unlocked invoice processing complete')
       } catch (err) {
         const isWrongPassword = err instanceof PasswordProtectedError

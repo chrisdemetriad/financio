@@ -43,7 +43,7 @@ export async function deleteLogo(relativePath: string): Promise<void> {
   try {
     if (cloud === 'aws' && process.env.AWS_ACCESS_KEY_ID) {
       const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
-      const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-1' })
+      const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-2' })
       await client.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets', Key: `logos/${filename}` }))
     } else if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       const { Storage } = await import('@google-cloud/storage')
@@ -64,29 +64,32 @@ export async function proxyLogo(filename: string, reply: FastifyReply): Promise<
   const ext = filename.split('.').pop() ?? 'png'
   const contentType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`
 
+  let buf: Buffer
+
   if (cloud === 'aws' && process.env.AWS_ACCESS_KEY_ID) {
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3')
-    const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-1' })
-    const obj = await client.send(new GetObjectCommand({ Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets', Key: `logos/${filename}` }))
-    reply.header('Content-Type', contentType)
-    reply.header('Cache-Control', 'public, max-age=86400')
-    reply.send(obj.Body)
-    return
-  }
-
-  if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-2' })
+    const obj = await client.send(new GetObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets',
+      Key: `logos/${filename}`,
+    }))
+    // SDK v3 Body is a SdkStreamMixin — must transform before sending
+    const bytes = await obj.Body!.transformToByteArray()
+    buf = Buffer.from(bytes)
+  } else if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     const { Storage } = await import('@google-cloud/storage')
     const storage = new Storage()
-    const [buf] = await storage.bucket(process.env.GCS_BUCKET ?? 'financio-assets').file(`logos/${filename}`).download()
-    reply.header('Content-Type', contentType)
-    reply.header('Cache-Control', 'public, max-age=86400')
-    reply.send(buf)
-    return
+    const [gcsBuf] = await storage
+      .bucket(process.env.GCS_BUCKET ?? 'financio-assets')
+      .file(`logos/${filename}`)
+      .download()
+    buf = gcsBuf
+  } else {
+    buf = await readFile(path.join(LOGOS_DIR, filename))
   }
 
-  // Local fallback — read from disk
-  const buf = await readFile(path.join(LOGOS_DIR, filename))
   reply.header('Content-Type', contentType)
+  reply.header('Content-Length', buf.length)
   reply.header('Cache-Control', 'public, max-age=86400')
   reply.send(buf)
 }

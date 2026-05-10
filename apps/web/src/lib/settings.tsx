@@ -1,11 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { useAuth } from '@clerk/react'
 import { createApiClient } from './api'
 import type { ExportFormat } from '@financio/types'
-
-const LS_FORMAT = 'financio:exportFormat'
-const LS_DARK = 'financio:darkMode'
-const LS_COLUMNS = 'financio:visibleColumns'
 
 export const ALL_COLUMNS = [
   { id: 'vendor', label: 'Vendor' },
@@ -24,21 +22,6 @@ const DEFAULT_VISIBLE: ColumnId[] = [
   'vendor', 'invoiceNumber', 'invoiceDate', 'dueDate', 'total', 'currency', 'status',
 ]
 
-function readLs<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw !== null ? (JSON.parse(raw) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writeLs(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {}
-}
-
 interface SettingsState {
   exportFormat: ExportFormat
   darkMode: boolean
@@ -47,110 +30,82 @@ interface SettingsState {
   toggleDark: () => void
   setVisibleColumns: (cols: ColumnId[]) => void
   toggleColumn: (col: ColumnId) => void
+  /** Internal: bulk-apply values loaded from the API without triggering a patch */
+  _applyRemote: (patch: { exportFormat: ExportFormat; darkMode: boolean; visibleColumns: ColumnId[] }) => void
 }
 
-const SettingsContext = createContext<SettingsState | null>(null)
+export const useSettings = create<SettingsState>()(
+  persist(
+    (set) => ({
+      exportFormat: 'csv',
+      darkMode: true,
+      visibleColumns: DEFAULT_VISIBLE,
+      setExportFormat: (fmt) => set({ exportFormat: fmt }),
+      toggleDark: () => set((s) => ({ darkMode: !s.darkMode })),
+      setVisibleColumns: (cols) => set({ visibleColumns: cols }),
+      toggleColumn: (col) =>
+        set((s) => ({
+          visibleColumns: s.visibleColumns.includes(col)
+            ? s.visibleColumns.filter((c) => c !== col)
+            : [...s.visibleColumns, col],
+        })),
+      _applyRemote: (patch) => set(patch),
+    }),
+    { name: 'financio:settings' },
+  ),
+)
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
+/**
+ * Renders nothing. Mount once in the component tree (inside ClerkProvider).
+ * Handles two side-effects that need React lifecycle:
+ *   1. Sync the `.dark` / `.light` class on <html> whenever darkMode changes.
+ *   2. Load settings from the API on sign-in, and debounce-patch on local changes.
+ */
+export function SettingsSyncer() {
   const { getToken, isSignedIn } = useAuth()
   const api = useMemo(() => createApiClient(() => getToken()), [getToken])
-  const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const apiRef = useRef(api)
+  apiRef.current = api
 
-  const [exportFormat, setExportFormatState] = useState<ExportFormat>(
-    () => readLs<ExportFormat>(LS_FORMAT, 'csv'),
-  )
-  const [darkMode, setDarkModeState] = useState<boolean>(
-    () => readLs<boolean>(LS_DARK, true),
-  )
-  const [visibleColumns, setVisibleColumnsState] = useState<ColumnId[]>(
-    () => readLs<ColumnId[]>(LS_COLUMNS, DEFAULT_VISIBLE),
-  )
+  const darkMode = useSettings((s) => s.darkMode)
+  const exportFormat = useSettings((s) => s.exportFormat)
+  const visibleColumns = useSettings((s) => s.visibleColumns)
+  const _applyRemote = useSettings((s) => s._applyRemote)
 
-  // Apply dark class to <html> on every change
+  // 1. Keep <html> class in sync
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
     document.documentElement.classList.toggle('light', !darkMode)
   }, [darkMode])
 
-  // Sync from API on mount (after auth)
+  // 2. Load from API when user signs in
   useEffect(() => {
     if (!isSignedIn) return
-    api.getSettings()
+    apiRef.current
+      .getSettings()
       .then((s) => {
-        const fmt = s.exportFormat as ExportFormat
-        const cols = (s.visibleColumns as ColumnId[]) ?? DEFAULT_VISIBLE
-        setExportFormatState(fmt)
-        setDarkModeState(s.darkMode)
-        setVisibleColumnsState(cols)
-        writeLs(LS_FORMAT, fmt)
-        writeLs(LS_DARK, s.darkMode)
-        writeLs(LS_COLUMNS, cols)
+        _applyRemote({
+          exportFormat: s.exportFormat as ExportFormat,
+          darkMode: s.darkMode,
+          visibleColumns: (s.visibleColumns as ColumnId[]) ?? DEFAULT_VISIBLE,
+        })
       })
       .catch(() => null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, api])
+  }, [isSignedIn])
 
-  // Debounced API patch — batches rapid changes
-  const schedulePatch = useCallback(
-    (patch: { exportFormat?: ExportFormat; darkMode?: boolean; visibleColumns?: ColumnId[] }) => {
-      if (syncTimeout.current) clearTimeout(syncTimeout.current)
-      syncTimeout.current = setTimeout(() => {
-        api.patchSettings(patch).catch(() => null)
-      }, 600)
-    },
-    [api],
-  )
+  // 3. Debounce-patch API on local changes
+  const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipNextPatch = useRef(true) // skip the very first render (initial load)
+  useEffect(() => {
+    if (skipNextPatch.current) { skipNextPatch.current = false; return }
+    if (!isSignedIn) return
+    if (syncTimeout.current) clearTimeout(syncTimeout.current)
+    syncTimeout.current = setTimeout(() => {
+      apiRef.current.patchSettings({ exportFormat, darkMode, visibleColumns }).catch(() => null)
+    }, 600)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportFormat, darkMode, visibleColumns])
 
-  const setExportFormat = useCallback(
-    (fmt: ExportFormat) => {
-      setExportFormatState(fmt)
-      writeLs(LS_FORMAT, fmt)
-      schedulePatch({ exportFormat: fmt })
-    },
-    [schedulePatch],
-  )
-
-  const toggleDark = useCallback(() => {
-    setDarkModeState((prev) => {
-      const next = !prev
-      writeLs(LS_DARK, next)
-      schedulePatch({ darkMode: next })
-      return next
-    })
-  }, [schedulePatch])
-
-  const setVisibleColumns = useCallback(
-    (cols: ColumnId[]) => {
-      setVisibleColumnsState(cols)
-      writeLs(LS_COLUMNS, cols)
-      schedulePatch({ visibleColumns: cols })
-    },
-    [schedulePatch],
-  )
-
-  const toggleColumn = useCallback(
-    (col: ColumnId) => {
-      setVisibleColumnsState((prev) => {
-        const next = prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col]
-        writeLs(LS_COLUMNS, next)
-        schedulePatch({ visibleColumns: next })
-        return next
-      })
-    },
-    [schedulePatch],
-  )
-
-  return (
-    <SettingsContext.Provider
-      value={{ exportFormat, darkMode, visibleColumns, setExportFormat, toggleDark, setVisibleColumns, toggleColumn }}
-    >
-      {children}
-    </SettingsContext.Provider>
-  )
-}
-
-export function useSettings(): SettingsState {
-  const ctx = useContext(SettingsContext)
-  if (!ctx) throw new Error('useSettings must be used inside SettingsProvider')
-  return ctx
+  return null
 }
