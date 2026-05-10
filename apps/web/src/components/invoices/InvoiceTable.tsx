@@ -2,15 +2,17 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
   flexRender,
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Search, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { Invoice } from '@financio/types'
+import { InvoiceRowActions } from './InvoiceRowActions'
+import type { Invoice, InvoiceConfidence } from '@financio/types'
 import { cn } from '@/lib/utils'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -18,6 +20,24 @@ const STATUS_STYLES: Record<string, string> = {
   complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
   error: 'border-red-500/40 bg-red-500/10 text-red-300',
   awaiting_password: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
+}
+
+// Map column id → confidence key
+const CONFIDENCE_MAP: Record<string, keyof InvoiceConfidence> = {
+  invoiceNumber: 'invoiceNumber',
+  invoiceDate: 'invoiceDate',
+  dueDate: 'dueDate',
+  total: 'total',
+  currency: 'currency',
+}
+
+function confidenceBg(invoice: Invoice, colId: string): string {
+  const key = CONFIDENCE_MAP[colId]
+  if (!key) return ''
+  const val = (invoice.confidence as InvoiceConfidence)?.[key]
+  if (val === undefined || val === null) return ''
+  if (val < 0.6) return 'bg-amber-500/10'
+  return ''
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -57,12 +77,14 @@ function money(value: number | null, currency: string | null) {
 interface InvoiceTableProps {
   invoices: Invoice[]
   visibleColumns: string[]
+  onViewDetails: (invoice: Invoice) => void
 }
 
-export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
+export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }])
+  const [globalFilter, setGlobalFilter] = useState('')
 
-  const columns: ColumnDef<Invoice>[] = [
+  const allColumns: ColumnDef<Invoice>[] = [
     {
       accessorKey: 'vendor',
       header: 'Vendor',
@@ -104,25 +126,35 @@ export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
     {
       accessorKey: 'invoiceNumber',
       header: 'Invoice #',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-slate-300">{(getValue() as string | null) ?? '—'}</span>
+      cell: ({ row, getValue }) => (
+        <span className={cn('font-mono text-xs text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceNumber'))}>
+          {(getValue() as string | null) ?? '—'}
+        </span>
       ),
     },
     {
       accessorKey: 'invoiceDate',
       header: 'Date',
-      cell: ({ getValue }) => <span className="text-sm text-slate-300">{fmt(getValue() as string | null)}</span>,
+      cell: ({ row, getValue }) => (
+        <span className={cn('text-sm text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceDate'))}>
+          {fmt(getValue() as string | null)}
+        </span>
+      ),
     },
     {
       accessorKey: 'dueDate',
       header: 'Due',
-      cell: ({ getValue }) => <span className="text-sm text-slate-300">{fmt(getValue() as string | null)}</span>,
+      cell: ({ row, getValue }) => (
+        <span className={cn('text-sm text-slate-300 rounded px-1', confidenceBg(row.original, 'dueDate'))}>
+          {fmt(getValue() as string | null)}
+        </span>
+      ),
     },
     {
       accessorKey: 'total',
       header: () => <span className="text-right">Total</span>,
       cell: ({ row }) => (
-        <span className="block text-right font-mono text-sm font-medium text-slate-100">
+        <span className={cn('block text-right font-mono text-sm font-medium text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
           {money(row.original.total, row.original.currency)}
         </span>
       ),
@@ -130,8 +162,10 @@ export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
     {
       accessorKey: 'currency',
       header: 'CCY',
-      cell: ({ getValue }) => (
-        <span className="text-xs font-medium text-slate-400">{(getValue() as string | null) ?? '—'}</span>
+      cell: ({ row, getValue }) => (
+        <span className={cn('text-xs font-medium text-slate-400', confidenceBg(row.original, 'currency'))}>
+          {(getValue() as string | null) ?? '—'}
+        </span>
       ),
     },
     {
@@ -144,68 +178,114 @@ export function InvoiceTable({ invoices, visibleColumns }: InvoiceTableProps) {
       header: 'Uploaded',
       cell: ({ getValue }) => <span className="text-xs text-slate-500">{fmt(getValue() as string)}</span>,
     },
+    // Actions column always visible
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />
+      ),
+      enableSorting: false,
+    },
   ]
+
+  const columns = allColumns.filter((col) => {
+    const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
+    if (id === 'actions') return true
+    return !id || visibleColumns.includes(id)
+  })
 
   const table = useReactTable({
     data: invoices,
-    columns: columns.filter((col) => {
-      const id = (col as { accessorKey?: string }).accessorKey
-      return !id || visibleColumns.includes(id)
-    }),
-    state: { sorting },
+    columns,
+    state: { sorting, globalFilter },
     onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: 'includesString',
   })
 
-  if (invoices.length === 0) {
-    return (
-      <div className="rounded-xl border border-white/[0.06] bg-[#1c1e26] px-6 py-12 text-center text-sm text-slate-500">
-        No invoices yet — drop files above to get started.
-      </div>
-    )
-  }
-
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-[#1c1e26]">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((hg) => (
-            <TableRow key={hg.id} className="border-white/[0.06] hover:bg-transparent">
-              {hg.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className="h-9 text-xs font-medium uppercase tracking-wide text-slate-500"
-                  onClick={header.column.getToggleSortingHandler()}
-                  style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}
+    <div className="space-y-3">
+      {/* Search bar */}
+      {invoices.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Search invoices…"
+            className="w-full rounded-lg border border-border bg-white/[0.02] py-2 pl-9 pr-9 text-sm text-slate-300 placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+          />
+          {globalFilter && (
+            <button
+              type="button"
+              onClick={() => setGlobalFilter('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {invoices.length === 0 ? (
+        <div className="rounded-xl border border-border bg-surface px-6 py-12 text-center text-sm text-slate-500">
+          No invoices yet — drop files above to get started.
+        </div>
+      ) : table.getRowModel().rows.length === 0 ? (
+        <div className="rounded-xl border border-border bg-surface px-6 py-8 text-center text-sm text-slate-500">
+          No invoices match <span className="text-slate-300">"{globalFilter}"</span>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id} className="border-border hover:bg-transparent">
+                  {hg.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className="h-9 text-xs font-medium uppercase tracking-wide text-slate-500"
+                      onClick={header.column.getToggleSortingHandler()}
+                      style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}
+                    >
+                      <span className="flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() &&
+                          ({
+                            asc: <ArrowUp className="h-3 w-3 text-accent" />,
+                            desc: <ArrowDown className="h-3 w-3 text-accent" />,
+                          }[header.column.getIsSorted() as string] ?? (
+                            <ArrowUpDown className="h-3 w-3 opacity-30" />
+                          ))}
+                      </span>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className="group cursor-pointer border-white/4 hover:bg-white/[0.025]"
+                  onClick={() => onViewDetails(row.original)}
                 >
-                  <span className="flex items-center gap-1">
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getCanSort() &&
-                      ({
-                        asc: <ArrowUp className="h-3 w-3 text-violet-400" />,
-                        desc: <ArrowDown className="h-3 w-3 text-violet-400" />,
-                      }[header.column.getIsSorted() as string] ?? (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      ))}
-                  </span>
-                </TableHead>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id} className="border-white/[0.04] hover:bg-white/[0.025]">
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className="py-3">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }
