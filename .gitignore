@@ -46,3 +46,7 @@ coverage
 
 # pulumi
 .pulumi/
+Pulumi.*.yaml
+!Pulumi.*.yaml.example
+infra/pulumi/node_modules
+infra/pulumi/bin
