@@ -1,8 +1,11 @@
 # Financio — top-level Dockerfile for the API (build context: repo root)
+#
+# Strategy: pnpm deploy produces a standalone directory with real files
+# (no symlinks) so Docker COPY works reliably across stages.
+
 FROM node:23-alpine AS builder
 WORKDIR /app
 
-# Enable pnpm
 RUN corepack enable
 
 # Copy manifests first for better layer caching
@@ -18,31 +21,34 @@ RUN pnpm install --frozen-lockfile
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
+# Generate Prisma client (creates node_modules/.prisma with the query engine binary)
+RUN pnpm --filter @financio/api db:generate
+
+# Compile TypeScript
 RUN pnpm --filter @financio/api build
+
+# pnpm deploy resolves all workspace packages and writes real files (not symlinks)
+# to /standalone — this is the recommended way to deploy a pnpm monorepo package.
+RUN pnpm deploy --filter @financio/api --prod /standalone
 
 # ── Runtime image ──────────────────────────────────────────────────────────
 FROM node:23-alpine AS runner
 WORKDIR /app
 
-RUN corepack enable
+# /standalone contains package.json + a real node_modules (no .pnpm symlinks)
+# and the bundled workspace deps (@financio/types, @financio/exports)
+COPY --from=builder /standalone ./
 
-# Re-install prod deps only
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/api/package.json ./apps/api/
-COPY packages/types/package.json ./packages/types/
-COPY packages/exports/package.json ./packages/exports/
-RUN pnpm install --frozen-lockfile --prod
+# Compiled API output (pnpm deploy only copies source, not dist)
+COPY --from=builder /app/apps/api/dist ./dist
 
-# Copy compiled output and shared package sources
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/packages/types/src ./packages/types/src
-COPY --from=builder /app/packages/exports/src ./packages/exports/src
+# Prisma schema (needed for migrations / introspect at runtime)
+COPY --from=builder /app/apps/api/prisma ./prisma
 
-# Copy Prisma schema so the client can find it at runtime
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+# Generated Prisma query-engine binary — prisma generate was not run in the
+# standalone install, so carry the binary across from the builder stage.
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 ENV NODE_ENV=production
-WORKDIR /app/apps/api
 EXPOSE 3001
 CMD ["node", "dist/index.js"]
