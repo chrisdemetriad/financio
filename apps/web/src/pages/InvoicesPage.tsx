@@ -317,6 +317,7 @@ export function InvoicesPage() {
       {/* Password modal queue */}
       {currentLocked && (
         <PasswordModal
+          key={currentLocked.id}
           invoice={currentLocked}
           remaining={passwordQueue.length}
           onUnlock={handleUnlock}

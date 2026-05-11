@@ -148,10 +148,10 @@ function EditedIndicator({ isEdited, children }: { isEdited: boolean; children: 
   if (!isEdited) return <>{children}</>
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="border-b border-dashed border-amber-400/70 pb-px">
-          {children}
-        </span>
+      <TooltipTrigger
+        render={<span className="border-b border-dashed border-amber-400/70 pb-px" />}
+      >
+        {children}
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">Manually edited</TooltipContent>
     </Tooltip>
@@ -329,7 +329,7 @@ function FilterBar({ filters, currencies, onChange }: {
       </div>
 
       {/* Status */}
-      <Select value={filters.status} onValueChange={(v: string) => onChange({ ...filters, status: v })}>
+      <Select value={filters.status} onValueChange={(v) => onChange({ ...filters, status: v ?? 'all' })}>
         <SelectTrigger className={triggerCls}>
           <SelectValue placeholder="All statuses" />
         </SelectTrigger>
@@ -344,7 +344,7 @@ function FilterBar({ filters, currencies, onChange }: {
 
       {/* Currency — only when multiple exist */}
       {currencies.length > 1 && (
-        <Select value={filters.currency} onValueChange={(v: string) => onChange({ ...filters, currency: v })}>
+        <Select value={filters.currency} onValueChange={(v) => onChange({ ...filters, currency: v ?? 'all' })}>
           <SelectTrigger className={cn(triggerCls, 'min-w-[110px]')}>
             <SelectValue placeholder="All currencies" />
           </SelectTrigger>
@@ -356,7 +356,7 @@ function FilterBar({ filters, currencies, onChange }: {
       )}
 
       {/* Tag filter */}
-      <Select value={filters.tag} onValueChange={(v: string) => onChange({ ...filters, tag: v })}>
+      <Select value={filters.tag} onValueChange={(v) => onChange({ ...filters, tag: v ?? 'all' })}>
         <SelectTrigger className={cn(triggerCls, 'min-w-[120px]')}>
           <SelectValue placeholder="All tags" />
         </SelectTrigger>
@@ -613,10 +613,10 @@ export function InvoiceTable({
                 </EditCell>
                 {recurring && (
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400 cursor-default">
-                        Recurring
-                      </span>
+                    <TooltipTrigger
+                      render={<span className="rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400 cursor-default" />}
+                    >
+                      Recurring
                     </TooltipTrigger>
                     <TooltipContent>Similar charge seen in the last 90 days</TooltipContent>
                   </Tooltip>
@@ -753,14 +753,16 @@ export function InvoiceTable({
         const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
         return (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setViewingFile(row.original) }}
-                className="rounded-md bg-slate-100 dark:bg-white/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 hover:bg-accent/15 hover:text-accent dark:hover:text-accent transition-colors"
-              >
-                {ext || 'file'}
-              </button>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className="rounded-md bg-slate-100 dark:bg-white/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 hover:bg-accent/15 hover:text-accent dark:hover:text-accent transition-colors"
+                />
+              }
+              onClick={(e) => { e.stopPropagation(); setViewingFile(row.original) }}
+            >
+              {ext || 'file'}
             </TooltipTrigger>
             <TooltipContent>View original file</TooltipContent>
           </Tooltip>
@@ -905,6 +907,7 @@ export function InvoiceTable({
 
       {viewingFile && (
         <FileViewerModal
+          key={viewingFile.id}
           invoice={viewingFile}
           api={api}
           onClose={() => setViewingFile(null)}

@@ -70,25 +70,26 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetail
   const [saving, setSaving] = useState(false)
 
   if (!invoice) return null
+  const currentInvoice = invoice
 
-  const c = invoice.confidence as InvoiceConfidence
+  const c = currentInvoice.confidence as InvoiceConfidence
 
   async function toggleTag(tag: string) {
     if (!onUpdate) return
-    const current = invoice?.tags ?? []
+    const current = currentInvoice.tags ?? []
     const next = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]
     setSaving(true)
-    try { await onUpdate(invoice.id, { tags: next }) } finally { setSaving(false) }
+    try { await onUpdate(currentInvoice.id, { tags: next }) } finally { setSaving(false) }
   }
 
   async function togglePaid() {
     if (!onUpdate) return
-    const next = !invoice.paid
+    const next = !currentInvoice.paid
     setSaving(true)
     try {
-      await onUpdate(invoice.id, {
+      await onUpdate(currentInvoice.id, {
         paid: next,
-        paidDate: next ? (invoice.paidDate ?? new Date().toISOString().slice(0, 10)) : null,
+        paidDate: next ? (currentInvoice.paidDate ?? new Date().toISOString().slice(0, 10)) : null,
       })
     } finally { setSaving(false) }
   }

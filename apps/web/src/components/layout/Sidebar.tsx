@@ -49,6 +49,7 @@ export function Sidebar() {
       {/* Dark mode toggle */}
       <div className="border-t border-border p-4">
         <button
+          type="button"
           onClick={toggleDark}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-white/4 hover:text-slate-800 dark:hover:text-slate-200"
         >

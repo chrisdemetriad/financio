@@ -16,6 +16,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data, 1)
   const w = 200
   const h = 40
+  const titleId = `sparkline-${color.replace('#', '').toLowerCase()}`
   const pts = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w
     const y = h - (v / max) * (h - 4) - 2
@@ -25,7 +26,14 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   const fill = `M ${pts[0]} L ${pts.join(' L ')} L ${(data.length - 1) / (data.length - 1) * w},${h} L 0,${h} Z`
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: h }}>
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="w-full"
+      style={{ height: h }}
+      role="img"
+      aria-labelledby={titleId}
+    >
+      <title id={titleId}>Instance count trend</title>
       <defs>
         <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.3" />
@@ -41,12 +49,15 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 // ── Instance grid ─────────────────────────────────────────────────────────
 
 function InstanceGrid({ count, maxCount, color }: { count: number; maxCount: number; color: string }) {
-  const slots = Array.from({ length: maxCount }, (_, i) => i < count)
+  const slots = Array.from({ length: maxCount }, (_, slotIndex) => ({
+    id: `slot-${slotIndex + 1}`,
+    active: slotIndex < count,
+  }))
   return (
     <div className="flex flex-wrap gap-1.5">
-      {slots.map((active, i) => (
+      {slots.map(({ id, active }) => (
         <div
-          key={i}
+          key={id}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-md border transition-all duration-500',
             active

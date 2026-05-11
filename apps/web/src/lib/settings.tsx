@@ -91,8 +91,7 @@ export function SettingsSyncer() {
         })
       })
       .catch(() => null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn])
+  }, [isSignedIn, _applyRemote])
 
   // 3. Debounce-patch API on local changes
   const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,8 +103,7 @@ export function SettingsSyncer() {
     syncTimeout.current = setTimeout(() => {
       apiRef.current.patchSettings({ exportFormat, darkMode, visibleColumns }).catch(() => null)
     }, 600)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exportFormat, darkMode, visibleColumns])
+  }, [exportFormat, darkMode, visibleColumns, isSignedIn])
 
   return null
 }

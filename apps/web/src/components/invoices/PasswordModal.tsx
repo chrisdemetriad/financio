@@ -20,9 +20,9 @@ export function PasswordModal({ invoice, remaining, onUnlock, onSkip }: Password
   useEffect(() => {
     setPassword('')
     setError(null)
-    setTimeout(() => inputRef.current?.focus(), 50)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoice.id])
+    const timeout = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(timeout)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -34,18 +34,27 @@ export function FileViewerModal({ invoice, api, onClose }: FileViewerModalProps)
   const isImg = isImage(ext)
 
   useEffect(() => {
-    setLoading(true)
-    setError(null)
+    let cancelled = false
+
     api.fetchInvoiceFile(invoice.id)
       .then(({ url, contentType: ct }) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url)
+          return
+        }
         setObjectUrl(url)
         setContentType(ct)
         revoke.current = url
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load file'))
-      .finally(() => setLoading(false))
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load file')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
     return () => {
+      cancelled = true
       if (revoke.current) URL.revokeObjectURL(revoke.current)
     }
   }, [invoice.id, api])
