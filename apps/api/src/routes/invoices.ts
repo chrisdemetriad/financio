@@ -59,6 +59,9 @@ function formatInvoice(row: {
   currency: string | null
   confidence: unknown
   editedFields: string[]
+  tags: string[]
+  paid: boolean
+  paidDate: Date | null
   status: string
   createdAt: Date
   updatedAt: Date
@@ -82,6 +85,9 @@ function formatInvoice(row: {
     currency: row.currency,
     confidence: (row.confidence as Invoice['confidence']) ?? {},
     editedFields: row.editedFields ?? [],
+    tags: row.tags ?? [],
+    paid: row.paid ?? false,
+    paidDate: row.paidDate?.toISOString().slice(0, 10) ?? null,
     status: row.status.toLowerCase() as Invoice['status'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -233,6 +239,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       dueDate: z.string().nullable().optional(),
       total: z.number().nullable().optional(),
       currency: z.string().max(3).nullable().optional(),
+      tags: z.array(z.string()).optional(),
+      paid: z.boolean().optional(),
+      paidDate: z.string().nullable().optional(),
       editedField: z.string().optional(),
     })
     const body = patchSchema.safeParse(request.body)
@@ -248,6 +257,15 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     if (fields.dueDate !== undefined) updateData.dueDate = fields.dueDate ? new Date(fields.dueDate) : null
     if (fields.total !== undefined) updateData.total = fields.total
     if (fields.currency !== undefined) updateData.currency = fields.currency
+    if (fields.tags !== undefined) updateData.tags = fields.tags
+    if (fields.paid !== undefined) {
+      updateData.paid = fields.paid
+      // Auto-set paidDate when marking as paid without an explicit date
+      if (fields.paid && fields.paidDate === undefined && !invoice.paidDate) {
+        updateData.paidDate = new Date()
+      }
+    }
+    if (fields.paidDate !== undefined) updateData.paidDate = fields.paidDate ? new Date(fields.paidDate) : null
 
     if (editedField) {
       const current = invoice.editedFields as string[]

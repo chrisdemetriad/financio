@@ -43,6 +43,9 @@ export interface Invoice {
   currency: string | null
   confidence: InvoiceConfidence
   editedFields: string[]
+  tags: string[]
+  paid: boolean
+  paidDate: string | null
   status: InvoiceStatus
   createdAt: string
   updatedAt: string

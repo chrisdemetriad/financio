@@ -41,6 +41,9 @@ model Invoice {
   currency      String?       @default("GBP")
   confidence    Json          @default("{}")
   editedFields  String[]
+  tags          String[]
+  paid          Boolean       @default(false)
+  paidDate      DateTime?
   status        InvoiceStatus @default(PROCESSING)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
