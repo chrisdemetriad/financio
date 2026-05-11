@@ -200,6 +200,19 @@ export function InvoicesPage() {
     }
   }, [api, selectedInvoice])
 
+  const handleDrawerUpdate = useCallback(async (
+    id: string,
+    patch: Partial<Pick<import('@financio/types').Invoice, 'tags' | 'paid' | 'paidDate'>>,
+  ) => {
+    try {
+      const updated = await api.patchInvoice(id, patch)
+      setInvoices((prev) => prev.map((inv) => inv.id === id ? updated : inv))
+      if (selectedInvoice?.id === id) setSelectedInvoice(updated)
+    } catch (err) {
+      toast.error(`Failed to update${err instanceof Error ? `: ${err.message}` : ''}`)
+    }
+  }, [api, selectedInvoice])
+
   const handleDeleteSelected = useCallback(async (ids: string[]) => {
     await Promise.allSettled(ids.map((id) => api.deleteInvoice(id)))
     setInvoices((prev) => prev.filter((inv) => !ids.includes(inv.id)))
@@ -294,7 +307,11 @@ export function InvoicesPage() {
       />
 
       {/* Detail sheet */}
-      <InvoiceDetailSheet invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
+      <InvoiceDetailSheet
+        invoice={selectedInvoice}
+        onClose={() => setSelectedInvoice(null)}
+        onUpdate={handleDrawerUpdate}
+      />
 
       {/* Password modal queue */}
       {currentLocked && (

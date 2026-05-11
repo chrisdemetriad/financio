@@ -1,10 +1,17 @@
-import { X, ExternalLink, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
+
+const DEFAULT_TAGS = [
+  'Software', 'Travel', 'Office', 'Contractors',
+  'Marketing', 'Legal', 'Finance', 'Utilities', 'Tax', 'Other',
+]
 
 interface InvoiceDetailSheetProps {
   invoice: Invoice | null
   onClose: () => void
+  onUpdate?: (id: string, patch: Partial<Pick<Invoice, 'tags' | 'paid' | 'paidDate'>>) => Promise<void>
 }
 
 const STATUS_PILL: Record<string, string> = {
@@ -22,10 +29,7 @@ function conf(value: number | null | undefined): { color: string; label: string 
 }
 
 function Field({
-  label,
-  value,
-  confidence,
-  mono,
+  label, value, confidence, mono,
 }: {
   label: string
   value: string | number | null
@@ -36,14 +40,12 @@ function Field({
   const isEmpty = value === null || value === undefined || value === ''
 
   return (
-    <div
-      className={cn(
-        'flex items-start justify-between gap-3 rounded-lg px-3 py-2.5',
-        !isEmpty && confidence !== undefined && confidence !== null && confidence < 0.6
-          ? 'bg-amber-500/8'
-          : 'bg-slate-50 dark:bg-white/2',
-      )}
-    >
+    <div className={cn(
+      'flex items-start justify-between gap-3 rounded-lg px-3 py-2.5',
+      !isEmpty && confidence !== undefined && confidence !== null && confidence < 0.6
+        ? 'bg-amber-500/8'
+        : 'bg-slate-50 dark:bg-white/2',
+    )}>
       <div className="min-w-0">
         <p className="text-xs text-slate-500">{label}</p>
         <p className={cn('mt-0.5 text-sm', isEmpty ? 'text-slate-400 dark:text-slate-600 italic' : 'text-slate-800 dark:text-slate-200', mono && 'font-mono')}>
@@ -64,15 +66,42 @@ function Field({
   )
 }
 
-export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps) {
+export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetailSheetProps) {
+  const [saving, setSaving] = useState(false)
+
   if (!invoice) return null
 
   const c = invoice.confidence as InvoiceConfidence
 
+  async function toggleTag(tag: string) {
+    if (!onUpdate) return
+    const current = invoice?.tags ?? []
+    const next = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]
+    setSaving(true)
+    try { await onUpdate(invoice.id, { tags: next }) } finally { setSaving(false) }
+  }
+
+  async function togglePaid() {
+    if (!onUpdate) return
+    const next = !invoice.paid
+    setSaving(true)
+    try {
+      await onUpdate(invoice.id, {
+        paid: next,
+        paidDate: next ? (invoice.paidDate ?? new Date().toISOString().slice(0, 10)) : null,
+      })
+    } finally { setSaving(false) }
+  }
+
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close detail panel"
+        className="fixed inset-0 z-40 w-full bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       {/* Panel */}
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-surface shadow-2xl">
@@ -113,11 +142,7 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
                   style={{ backgroundColor: invoice.logoBgColor ?? '#1c1e26' }}
                 >
-                  <img
-                    src={invoice.logoUrl}
-                    alt={invoice.vendor ?? ''}
-                    className="h-7 w-7 object-contain"
-                  />
+                  <img src={invoice.logoUrl} alt={invoice.vendor ?? ''} className="h-7 w-7 object-contain" />
                 </div>
               )}
               <div>
@@ -134,6 +159,58 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
                   </a>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* Payment status */}
+          <section>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Payment</p>
+            <button
+              type="button"
+              onClick={togglePaid}
+              disabled={saving || !onUpdate}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+                invoice.paid
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-slate-50 dark:bg-white/2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/4',
+              )}
+            >
+              {invoice.paid
+                ? <CheckSquare className="h-4 w-4 shrink-0" />
+                : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
+              <span>{invoice.paid ? 'Paid' : 'Mark as paid'}</span>
+              {invoice.paid && invoice.paidDate && (
+                <span className="ml-auto text-xs opacity-70">{invoice.paidDate}</span>
+              )}
+            </button>
+          </section>
+
+          {/* Tags */}
+          <section>
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">
+              <Tag className="h-3 w-3" /> Tags
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEFAULT_TAGS.map((tag) => {
+                const active = invoice.tags?.includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    disabled={saving || !onUpdate}
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                      active
+                        ? 'bg-accent text-white'
+                        : 'bg-slate-100 dark:bg-white/6 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10',
+                    )}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
             </div>
           </section>
 
@@ -166,6 +243,7 @@ export function InvoiceDetailSheet({ invoice, onClose }: InvoiceDetailSheetProps
               </p>
               <div className="space-y-1 rounded-lg border border-border overflow-hidden">
                 {invoice.lineItems.map((item, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: line items have no stable id
                   <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 odd:bg-slate-50 dark:odd:bg-white/2">
                     <p className="text-xs text-slate-700 dark:text-slate-300">{item.description}</p>
                     <p className="shrink-0 font-mono text-xs text-slate-700 dark:text-slate-300">

@@ -204,13 +204,18 @@ function EditCell({
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 
-interface Filters { text: string; status: string; currency: string; dateFrom: string; dateTo: string }
-const EMPTY_FILTERS: Filters = { text: '', status: 'all', currency: 'all', dateFrom: '', dateTo: '' }
+interface Filters { text: string; status: string; currency: string; tag: string; dateFrom: string; dateTo: string }
+const EMPTY_FILTERS: Filters = { text: '', status: 'all', currency: 'all', tag: 'all', dateFrom: '', dateTo: '' }
 
 function activeFilterCount(f: Filters) {
   return (f.text ? 1 : 0) + (f.status !== 'all' ? 1 : 0) + (f.currency !== 'all' ? 1 : 0) +
-    (f.dateFrom ? 1 : 0) + (f.dateTo ? 1 : 0)
+    (f.tag !== 'all' ? 1 : 0) + (f.dateFrom ? 1 : 0) + (f.dateTo ? 1 : 0)
 }
+
+const INVOICE_TAGS = [
+  'Software', 'Travel', 'Office', 'Contractors',
+  'Marketing', 'Legal', 'Finance', 'Utilities', 'Tax', 'Other',
+]
 
 /** Format a YYYY-MM-DD string to a short display label, e.g. "12 Mar 2026" */
 function fmtFilterDate(iso: string) {
@@ -323,6 +328,17 @@ function FilterBar({ filters, currencies, onChange }: {
           </SelectContent>
         </Select>
       )}
+
+      {/* Tag filter */}
+      <Select value={filters.tag} onValueChange={(v: string) => onChange({ ...filters, tag: v })}>
+        <SelectTrigger className={cn(triggerCls, 'min-w-[120px]')}>
+          <SelectValue placeholder="All tags" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All tags</SelectItem>
+          {INVOICE_TAGS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+        </SelectContent>
+      </Select>
 
       {/* Date range — Popover + Calendar */}
       <div className="flex items-center gap-1.5">
@@ -497,6 +513,7 @@ export function InvoiceTable({
   const preFiltered = useMemo(() => invoices.filter((inv) => {
     if (filters.status !== 'all' && inv.status !== filters.status) return false
     if (filters.currency !== 'all' && inv.currency !== filters.currency) return false
+    if (filters.tag !== 'all' && !inv.tags?.includes(filters.tag)) return false
     if (filters.dateFrom && inv.invoiceDate && inv.invoiceDate < filters.dateFrom) return false
     if (filters.dateTo && inv.invoiceDate && inv.invoiceDate > filters.dateTo) return false
     return true
