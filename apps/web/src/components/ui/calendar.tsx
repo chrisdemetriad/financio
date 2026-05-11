@@ -1,4 +1,4 @@
-import * as React from 'react'
+import type * as React from 'react'
 import { DayPicker } from 'react-day-picker'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -8,6 +8,18 @@ import { buttonVariants } from '@/components/ui/button'
 import 'react-day-picker/style.css'
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+function CalendarChevron({
+  orientation,
+  className,
+  ...props
+}: React.ComponentProps<'svg'> & { orientation?: 'left' | 'right' | 'up' | 'down' }) {
+  return orientation === 'left' ? (
+    <ChevronLeft className={cn('size-4', className)} {...props} />
+  ) : (
+    <ChevronRight className={cn('size-4', className)} {...props} />
+  )
+}
 
 /** Calendar for popovers; styled with Tailwind + default DayPicker CSS for grid layout. */
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
@@ -46,14 +58,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         hidden: 'invisible',
         ...classNames,
       }}
-      components={{
-        Chevron: ({ orientation, className: chClassName, ...chevronProps }) =>
-          orientation === 'left' ? (
-            <ChevronLeft className={cn('size-4', chClassName)} {...chevronProps} />
-          ) : (
-            <ChevronRight className={cn('size-4', chClassName)} {...chevronProps} />
-          ),
-      }}
+      components={{ Chevron: CalendarChevron }}
       {...props}
     />
   )
