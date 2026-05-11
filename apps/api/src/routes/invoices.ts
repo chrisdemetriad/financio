@@ -286,13 +286,10 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       where: { userId: dbUserId },
       select: { logoUrl: true },
     })
-    const logoPaths = [
-      ...new Set(
-        rows
-          .map((row: { logoUrl: string | null }) => row.logoUrl)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ]
+    const logoPaths: string[] = []
+    for (const row of rows as Array<{ logoUrl: string | null }>) {
+      if (row.logoUrl) logoPaths.push(row.logoUrl)
+    }
 
     await db.invoice.deleteMany({ where: { userId: dbUserId } })
 
