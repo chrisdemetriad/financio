@@ -219,7 +219,7 @@ export function DashboardPage() {
   void ccyData
 
   return (
-    <div className="flex flex-col gap-8 p-6">
+    <div className="flex flex-1 flex-col gap-8 overflow-auto p-6">
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Dashboard</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

@@ -726,7 +726,19 @@ export function InvoiceTable({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ getValue }) => <StatusBadge status={getValue() as string} />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={row.original.status} />
+          {row.original.paid && (
+            <Badge
+              variant="outline"
+              className="border-emerald-500/40 bg-emerald-500/10 text-xs text-emerald-700 dark:text-emerald-300"
+            >
+              Paid
+            </Badge>
+          )}
+        </div>
+      ),
     },
     // ── Uploaded ──
     {

@@ -196,7 +196,7 @@ export function VendorsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Vendors</h1>
