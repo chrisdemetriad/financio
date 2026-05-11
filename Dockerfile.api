@@ -31,6 +31,12 @@ RUN pnpm --filter @financio/api build
 # to /standalone — this is the recommended way to deploy a pnpm monorepo package.
 RUN pnpm deploy --filter @financio/api --prod /standalone
 
+# Generate Prisma inside the standalone bundle itself so the runtime image
+# gets the generated client and engine files in pnpm's real deployed layout.
+RUN cp -R /app/apps/api/prisma /standalone/prisma \
+  && cd /standalone \
+  && ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
+
 # ── Runtime image ──────────────────────────────────────────────────────────
 FROM node:23-alpine AS runner
 WORKDIR /app
@@ -41,13 +47,6 @@ COPY --from=builder /standalone ./
 
 # Compiled API output (pnpm deploy only copies source, not dist)
 COPY --from=builder /app/apps/api/dist ./dist
-
-# Prisma schema (needed for migrations / introspect at runtime)
-COPY --from=builder /app/apps/api/prisma ./prisma
-
-# Generated Prisma query-engine binary — prisma generate was not run in the
-# standalone install, so carry the binary across from the builder stage.
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 ENV NODE_ENV=production
 EXPOSE 3001
