@@ -74,6 +74,30 @@ function isOverdue(invoice: Invoice) {
   return new Date(invoice.dueDate) < new Date()
 }
 
+/**
+ * Returns true if another completed invoice exists from the same vendor+currency
+ * with a total within 5% and an invoiceDate within the last 90 days.
+ * Used to badge "Possibly recurring" on rows that look like repeat subscriptions.
+ */
+function isLikelyRecurring(invoice: Invoice, all: Invoice[]): boolean {
+  if (!invoice.vendor || invoice.total === null || invoice.total <= 0) return false
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 90)
+  const cutoffStr = cutoff.toISOString().slice(0, 10)
+
+  return all.some((other) => {
+    if (other.id === invoice.id) return false
+    if (other.status !== 'complete') return false
+    if (other.vendor !== invoice.vendor) return false
+    if (other.currency !== invoice.currency) return false
+    if (other.total === null) return false
+    const dateStr = other.invoiceDate ?? other.createdAt.slice(0, 10)
+    if (dateStr < cutoffStr) return false
+    const ratio = Math.abs((other.total - (invoice.total as number)) / (invoice.total as number))
+    return ratio <= 0.05
+  })
+}
+
 // ─── Small reusable components ────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -571,16 +595,29 @@ export function InvoiceTable({
       header: 'Vendor',
       cell: ({ row }) => {
         const { id, vendor, vendorDomain, logoUrl, logoBgColor, editedFields } = row.original
+        const recurring = isLikelyRecurring(row.original, invoices)
         return (
           <div className="flex min-w-[140px] items-center gap-2.5">
             <VendorAvatar vendor={vendor} logoUrl={logoUrl} logoBgColor={logoBgColor} />
             <div>
-              <EditCell rowId={id} field="vendor" rawValue={vendor ?? ''} inputType="text"
-                isEdited={editedFields?.includes('vendor')} editingCell={editingCell}
-                onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'vendor', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
-                className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                {vendor ?? '—'}
-              </EditCell>
+              <div className="flex items-center gap-1.5">
+                <EditCell rowId={id} field="vendor" rawValue={vendor ?? ''} inputType="text"
+                  isEdited={editedFields?.includes('vendor')} editingCell={editingCell}
+                  onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'vendor', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+                  className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {vendor ?? '—'}
+                </EditCell>
+                {recurring && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400 cursor-default">
+                        Recurring
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Similar charge seen in the last 90 days</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               {vendorDomain && (
                 <a href={`https://${vendorDomain}`} target="_blank" rel="noreferrer"
                   className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-violet-600 dark:hover:text-violet-400"
@@ -706,7 +743,7 @@ export function InvoiceTable({
       cell: ({ row }) => <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />,
       enableSorting: false,
     },
-  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails])
+  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, invoices])
 
   const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
