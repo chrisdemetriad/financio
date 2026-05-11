@@ -86,9 +86,6 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @financio/web exec playwright install --with-deps chromium
 
-      - name: Build frontend
-        run: pnpm --filter @financio/web build
-
       - name: Run Playwright tests
         run: pnpm --filter @financio/web test:e2e
         env:
