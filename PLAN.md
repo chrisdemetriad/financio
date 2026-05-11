@@ -11,7 +11,7 @@
 
 ## What the App Does
 
-The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent AI pipeline extracts structured data from each invoice, validates it, and fetches the vendor's logo. The results appear in a live table. The user can copy or export the data in multiple formats, bulk-select rows, filter the table, and manually correct extracted values inline. All data persists until explicitly cleared.
+The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent AI pipeline extracts structured data from each invoice, validates it, and fetches the vendor's logo. The results appear in a live table. The user can copy or export the data in multiple formats, bulk-select rows, filter the table, manually correct extracted values inline, tag invoices, track payment state, and open the original PDF/image in a full-screen viewer. All data persists until explicitly cleared.
 
 ### Core user flows
 
@@ -19,9 +19,11 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to S3/GCS → logo column updates
 3. **Review/correct** → user filters the table, spots overdue invoices, and double-clicks fields to correct vendor / invoice number / dates / total / currency inline
 4. **Bulk actions** → user multi-selects rows, sees running total for the current selection, then copies selected rows as CSV / JSON, downloads Excel, or deletes selected
-5. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
-6. **Clear** → confirmation dialog → all invoices deleted for the current user
-7. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
+5. **Analytics** → `/dashboard` summarizes spend by month/vendor/currency and highlights overdue + outstanding invoices
+6. **Vendor analysis** → `/vendors` aggregates invoices by vendor/domain with totals, counts, average invoice size, and last invoice date
+7. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
+8. **Clear** → confirmation dialog → all invoices deleted for the current user
+9. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
 
 ---
 
@@ -55,6 +57,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | Styling | Tailwind CSS + Shadcn/ui | Utility-first; **light and dark** with class-based `dark:` variant |
 | Tables | TanStack Table | Sorting, filtering, column visibility, zero-cost |
 | Filter controls | Shadcn/ui Select + Popover + `react-day-picker` | Consistent dropdowns/date pickers across light and dark mode |
+| Charts | `recharts` | Dashboard charts without backend changes |
 | File drops | react-dropzone | Full-page drag target, file validation |
 | Toasts | Sonner | Lightweight, dark-mode-ready |
 | Command palette | cmdk | `⌘K` shortcut, one-liner integration |
@@ -108,7 +111,7 @@ financio/
 - **Status pills**: Overdue (red), Due Soon (amber), Paid (green), Processing (blue)
 - **Cards**: 1px border `border-white/[0.06]`, no drop shadows, flat surfaces
 - **Confidence highlighting**: low-confidence fields (`< 0.7`) tinted amber
-- **Table quick wins**: multi-select with a floating bulk-actions bar, running totals for selected rows, inline editing on key extracted fields, manual-edit indicator (dashed underline + tooltip), overdue highlighting, and a filter bar using Shadcn-style dropdowns and calendar popovers
+- **Table quick wins**: multi-select with a floating bulk-actions bar, running totals for selected rows, inline editing on key extracted fields, manual-edit indicator (dashed underline + tooltip), overdue highlighting, recurring-detection badges, payment pills, a file-format pill that opens the original PDF/image viewer, and a filter bar using Shadcn-style dropdowns and calendar popovers
 - **Sidebar**: 220px fixed, logo top-left, dark mode toggle bottom-left
 - **Reference design**: clean, modern SaaS dashboard (Zaant-style) — not cluttered
 
@@ -124,6 +127,10 @@ The invoice table is no longer a passive output view. It is the main working sur
 - **Inline editing**: allow direct correction of extracted fields in the table for vendor, invoice number, invoice date, due date, total, and currency.
 - **Manual edit indicator**: visually mark fields that were actually changed by the user. Double-clicking alone must not mark a field as edited.
 - **Overdue highlighting**: compare `dueDate` with today and visually flag overdue invoices without needing to open the drawer.
+- **Payment state**: track `paid` separately from extraction `status`. "Complete" means extraction worked; "Paid" means the invoice has been settled.
+- **Tags**: support multiple tags per invoice, editable from the row detail drawer and filterable from the table.
+- **Recurring detection**: badge likely subscription-like repeats using same vendor + currency and similar totals in the last 90 days.
+- **Original file viewer**: expose a dedicated file-format pill in the table that opens the original PDF/image in a full-screen modal for extraction QA.
 - **Theme parity**: all new controls in this area must be checked in both light and dark mode before shipping.
 
 ---
@@ -165,13 +172,14 @@ File upload
 
 ```sql
 User        -- Clerk user_id, email, settings
-Invoice     -- all extracted fields, userId FK, fileHash, logoUrl, logoBgColor, confidence JSON, editedFields[]
+Invoice     -- all extracted fields, userId FK, fileHash, logoUrl, logoBgColor, confidence JSON, editedFields[], tags[], paid, paidDate
 UserSettings -- exportFormat, visibleColumns, darkMode
 ```
 
 `user_id` is included from day one (nullable until Clerk is wired up).  
 File hash enables duplicate detection on upload.  
 `editedFields[]` tracks fields manually corrected in the table so the UI can show a manual-edit indicator and avoid conflating extracted data with user-corrected data.
+`tags[]`, `paid`, and `paidDate` support accounting workflows and dashboard/vendor aggregations without requiring a separate bookkeeping system.
 
 ---
 
@@ -291,6 +299,12 @@ Additional table UX work landed after the original 40-commit outline and should 
 - Inline editing for key extracted fields
 - Manual-edit tracking via `editedFields[]` + dashed underline indicator
 - Overdue row highlighting
+- Tags (multi-tag picker in the detail drawer + tag filter in the table)
+- Payment tracking (`paid` + `paidDate`, plus visible Paid pill in the table)
+- Recurring detection badge
+- Original-file viewer modal opened from a file-format pill in the table
+- `/dashboard` page with spend/overdue/outstanding analytics
+- `/vendors` page with frontend-only aggregation by vendor/domain
 
 See `docs/current-state.md` for the implementation-status summary and table UX rules that future agents should preserve.
 

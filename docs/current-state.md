@@ -34,6 +34,8 @@ The app currently supports:
 - vendor logo fetching and storage-backed logo display
 - per-row actions and bulk export/copy flows
 - settings persistence, including theme and export preferences
+- dashboard analytics derived from invoice data
+- vendor-level aggregation in a dedicated `/vendors` page
 - a working invoice review table intended for day-to-day accounting-style use
 
 The invoice table is the primary working surface, not just a passive output list.
@@ -93,6 +95,66 @@ These behaviors are part of the current baseline and should be preserved unless 
 - Invoices with a past `dueDate` are visually flagged as overdue.
 - This status is visible directly in the table without requiring the user to open the row details drawer.
 
+### 7. Tags
+
+- Invoices support multiple tags.
+- Tags are edited from the detail drawer via quick-select chips.
+- The table includes a tag filter.
+- These tags are intended for lightweight accounting categorisation, not a fully separate taxonomy system.
+
+### 8. Payment tracking
+
+- Payment state is separate from extraction state.
+- `Complete` means extraction succeeded.
+- `Paid` means the invoice has been marked as settled by the user.
+- The table shows a visible Paid pill next to the extraction-status pill when relevant.
+- The detail drawer supports toggling paid status and storing `paidDate`.
+
+### 9. Recurring detection
+
+- The table shows a recurring badge when another invoice exists with:
+  - same vendor
+  - same currency
+  - a total within 5%
+  - an invoice date within the last 90 days
+- This is a client-side heuristic intended to help spot likely subscriptions or repeated charges.
+
+### 10. Original file viewer
+
+- The table includes a file-format pill (PDF / PNG / JPG / etc.).
+- Clicking it opens a full-screen modal for the original uploaded file.
+- PDFs use the browser's native viewer in an iframe.
+- Images open in an image viewer with zoom and rotation controls.
+- This feature exists specifically to help verify extraction output against the source document.
+
+---
+
+## Additional Pages
+
+### Dashboard
+
+- `/dashboard` is implemented.
+- It is derived entirely from invoice data already loaded for the user.
+- Current widgets include:
+  - spend this month vs last month (separate per currency)
+  - spend by month
+  - top vendors by spend
+  - currency breakdown
+  - overdue count
+  - outstanding unpaid totals
+
+### Vendors
+
+- `/vendors` is implemented.
+- It aggregates by vendor domain when available, with fallback to vendor name.
+- Current fields include:
+  - logo
+  - invoice count
+  - total spend by currency
+  - average invoice size
+  - last invoice date
+- This is a frontend aggregation page; no dedicated backend endpoint is required.
+
 ---
 
 ## Current UI Rules
@@ -104,6 +166,7 @@ These rules were reinforced by implementation and user feedback.
 - Avoid dark-only styling such as deep dark backgrounds without a proper light counterpart.
 - Popovers and dropdowns should visually match the app's other floating surfaces; avoid bright outline rings that look inconsistent with existing menus.
 - Brand/logo presentation should remain readable in both themes.
+- Scroll behavior matters: route pages inside the main app shell must explicitly use their own scrolling container (`flex-1` + `overflow-auto`) because the shell itself is `overflow-hidden`.
 
 ---
 
@@ -115,6 +178,9 @@ These are not theoretical; the frontend depends on them now.
 
 - `Invoice.logoBgColor`
 - `Invoice.editedFields[]`
+- `Invoice.tags[]`
+- `Invoice.paid`
+- `Invoice.paidDate`
 
 ### API
 
@@ -122,6 +188,9 @@ These are not theoretical; the frontend depends on them now.
   - used for inline editing
   - updates invoice fields
   - records the edited field so the UI can show manual-edit indicators
+- `GET /invoices/:id/file`
+  - auth-gated endpoint for the original uploaded source file
+  - used by the full-screen PDF/image viewer modal
 
 ---
 
@@ -131,6 +200,8 @@ These are not theoretical; the frontend depends on them now.
 - The app uses a class-based dark mode strategy.
 - The filter bar uses reusable UI primitives for dropdowns and popovers.
 - The table supports both single-row workflows and bulk workflows.
+- Dashboard and vendors pages are frontend aggregation views over invoice data.
+- Original-file QA happens in a dedicated modal rather than overloading the detail drawer.
 
 ---
 
@@ -142,6 +213,6 @@ Before changing the invoice table or related API/schema behavior:
 2. Read this file.
 3. Preserve the current table UX unless the user explicitly asks for a behavior change.
 4. Check both light and dark mode for any UI work.
-5. Do not remove `editedFields[]`, inline editing support, or bulk-selection behavior unless the user specifically requests that change.
+5. Do not remove `editedFields[]`, inline editing support, bulk-selection behavior, payment tracking, tag support, recurring badges, or the original-file viewer unless the user specifically requests that change.
 
 If `PLAN.md` and the current code diverge, treat this file as the implementation-status companion to the plan, then confirm with the user before making a contradictory architectural change.
