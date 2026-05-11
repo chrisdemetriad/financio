@@ -9,13 +9,18 @@ import { settingsRoutes } from './routes/settings.js'
 import { metricsRoutes } from './routes/metrics.js'
 import { proxyLogo } from './lib/logoStorage.js'
 
+const logger =
+  process.env.NODE_ENV === 'production'
+    ? true
+    : {
+        transport: {
+          target: 'pino-pretty',
+          options: { colorize: true },
+        },
+      }
+
 const server = Fastify({
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true },
-    },
-  },
+  logger,
 })
 
 await server.register(cors, {
