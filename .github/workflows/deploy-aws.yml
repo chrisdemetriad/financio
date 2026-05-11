@@ -17,6 +17,10 @@ jobs:
   deploy:
     name: Build → ECR → App Runner
     runs-on: ubuntu-latest
+    env:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,11 +31,40 @@ jobs:
           node-version: 23
           cache: pnpm
 
+      - name: Validate AWS auth configuration
+        shell: bash
+        run: |
+          if [ -n "${AWS_ROLE_ARN}" ] && [ -n "${AWS_ACCESS_KEY_ID}" ]; then
+            echo "Configure either AWS_ROLE_ARN or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, not both."
+            exit 1
+          fi
+
+          if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "AWS_SECRET_ACCESS_KEY is required when using AWS_ACCESS_KEY_ID."
+            exit 1
+          fi
+
+          if [ -z "${AWS_ROLE_ARN}" ] && [ -z "${AWS_ACCESS_KEY_ID}" ]; then
+            echo "Missing AWS auth secrets."
+            echo "Set either AWS_ROLE_ARN or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY."
+            exit 1
+          fi
+
       # Keyless auth via OIDC — no AWS_ACCESS_KEY_ID stored in secrets
       - name: Configure AWS credentials (OIDC)
+        if: ${{ env.AWS_ROLE_ARN != '' && env.AWS_ACCESS_KEY_ID == '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Simpler fallback using long-lived access keys stored in GitHub secrets
+      - name: Configure AWS credentials (Access Keys)
+        if: ${{ env.AWS_ACCESS_KEY_ID != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
