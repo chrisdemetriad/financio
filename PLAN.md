@@ -5,22 +5,23 @@
 ---
 
 > **For any agent picking this up mid-build:**
-> Read this entire file before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. The design system section defines all visual tokens. The infrastructure section defines the two-cloud split. The environment variables section lists every secret needed and when.
+> Read this entire file **and** `docs/current-state.md` before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. `docs/current-state.md` is the implementation-status companion document and captures features/UX that landed after the original outline. The design system section defines all visual tokens. The infrastructure section defines the two-cloud split. The environment variables section lists every secret needed and when.
 
 ---
 
 ## What the App Does
 
-The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent AI pipeline extracts structured data from each invoice, validates it, and fetches the vendor's logo. The results appear in a live table. The user can copy or export the data in multiple formats. All data persists until explicitly cleared.
+The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent AI pipeline extracts structured data from each invoice, validates it, and fetches the vendor's logo. The results appear in a live table. The user can copy or export the data in multiple formats, bulk-select rows, filter the table, and manually correct extracted values inline. All data persists until explicitly cleared.
 
 ### Core user flows
 
 1. **Drop invoice** → file hashed (duplicate check) → extraction agent → validator agent → row appears in table
 2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to S3/GCS → logo column updates
-3. **Copy/export** → user copies one row or all rows to clipboard, or downloads CSV / XLSX / PDF
-4. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
-5. **Clear** → confirmation dialog → all invoices deleted for the current user
-6. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
+3. **Review/correct** → user filters the table, spots overdue invoices, and double-clicks fields to correct vendor / invoice number / dates / total / currency inline
+4. **Bulk actions** → user multi-selects rows, sees running total for the current selection, then copies selected rows as CSV / JSON, downloads Excel, or deletes selected
+5. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
+6. **Clear** → confirmation dialog → all invoices deleted for the current user
+7. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
 
 ---
 
@@ -53,6 +54,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | Frontend | React 19 + Vite + TypeScript | Fast dev loop, no SSR needed, internal tool |
 | Styling | Tailwind CSS + Shadcn/ui | Utility-first; **light and dark** with class-based `dark:` variant |
 | Tables | TanStack Table | Sorting, filtering, column visibility, zero-cost |
+| Filter controls | Shadcn/ui Select + Popover + `react-day-picker` | Consistent dropdowns/date pickers across light and dark mode |
 | File drops | react-dropzone | Full-page drag target, file validation |
 | Toasts | Sonner | Lightweight, dark-mode-ready |
 | Command palette | cmdk | `⌘K` shortcut, one-liner integration |
@@ -79,6 +81,8 @@ financio/
 ├── apps/
 │   ├── web/               # Vite React frontend
 │   └── api/               # Fastify backend
+├── docs/
+│   └── current-state.md   # implementation-status handoff for future agents
 ├── packages/
 │   ├── types/             # Shared TypeScript types (invoices, API responses)
 │   └── exports/           # Shared export utilities (CSV, XLSX, PDF)
@@ -104,8 +108,23 @@ financio/
 - **Status pills**: Overdue (red), Due Soon (amber), Paid (green), Processing (blue)
 - **Cards**: 1px border `border-white/[0.06]`, no drop shadows, flat surfaces
 - **Confidence highlighting**: low-confidence fields (`< 0.7`) tinted amber
+- **Table quick wins**: multi-select with a floating bulk-actions bar, running totals for selected rows, inline editing on key extracted fields, manual-edit indicator (dashed underline + tooltip), overdue highlighting, and a filter bar using Shadcn-style dropdowns and calendar popovers
 - **Sidebar**: 220px fixed, logo top-left, dark mode toggle bottom-left
 - **Reference design**: clean, modern SaaS dashboard (Zaant-style) — not cluttered
+
+---
+
+## Current Table UX
+
+The invoice table is no longer a passive output view. It is the main working surface for someone reviewing extracted invoices.
+
+- **Bulk selection + actions**: checkbox selection per row plus a floating bulk-actions bar. Keep the existing per-row 3-dot menus as well.
+- **Running totals**: show the sum of `total` for the current selection so accounting users can sanity-check a subset before export.
+- **Filter bar**: vendor / invoice search, status filter, currency filter, and invoice date range. Use styled Shadcn/Base UI controls rather than native browser selects/date inputs.
+- **Inline editing**: allow direct correction of extracted fields in the table for vendor, invoice number, invoice date, due date, total, and currency.
+- **Manual edit indicator**: visually mark fields that were actually changed by the user. Double-clicking alone must not mark a field as edited.
+- **Overdue highlighting**: compare `dueDate` with today and visually flag overdue invoices without needing to open the drawer.
+- **Theme parity**: all new controls in this area must be checked in both light and dark mode before shipping.
 
 ---
 
@@ -146,12 +165,13 @@ File upload
 
 ```sql
 User        -- Clerk user_id, email, settings
-Invoice     -- all extracted fields, userId FK, fileHash, logoUrl, confidence JSON
+Invoice     -- all extracted fields, userId FK, fileHash, logoUrl, logoBgColor, confidence JSON, editedFields[]
 UserSettings -- exportFormat, visibleColumns, darkMode
 ```
 
 `user_id` is included from day one (nullable until Clerk is wired up).  
-File hash enables duplicate detection on upload.
+File hash enables duplicate detection on upload.  
+`editedFields[]` tracks fields manually corrected in the table so the UI can show a manual-edit indicator and avoid conflating extracted data with user-corrected data.
 
 ---
 
@@ -262,6 +282,17 @@ GitHub Actions uses OIDC (AWS) and Workload Identity Federation (GCP) — no lon
 | 30 | `feat: bulk export` | Table header "Export all" → downloads file in user's preferred format |
 | 31 | `feat: command palette` | cmdk, `⌘K` → Clear all / Export / Settings / Upload |
 | 32 | `feat: keyboard shortcuts` | `?` modal listing all shortcuts |
+
+Additional table UX work landed after the original 40-commit outline and should be treated as part of the current baseline for the app:
+
+- Multi-select row checkboxes with a floating bulk-actions bar
+- Selected-row running totals
+- Filter bar with Shadcn/Base UI dropdowns and calendar popovers
+- Inline editing for key extracted fields
+- Manual-edit tracking via `editedFields[]` + dashed underline indicator
+- Overdue row highlighting
+
+See `docs/current-state.md` for the implementation-status summary and table UX rules that future agents should preserve.
 
 ### Phase 7 — Infrastructure (commits 33–37)
 
