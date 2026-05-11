@@ -75,6 +75,16 @@ export function createApiClient(getToken: () => Promise<string | null>) {
         body: JSON.stringify(patch),
       }, getToken),
 
+    fetchInvoiceFile: async (id: string): Promise<{ url: string; contentType: string }> => {
+      const token = await getToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`${API_BASE}/invoices/${id}/file`, { headers })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      return { url: URL.createObjectURL(blob), contentType: res.headers.get('Content-Type') ?? '' }
+    },
+
     getMetrics: () => request<MetricsResponse>('/metrics', {}, getToken),
   }
 }

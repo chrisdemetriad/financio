@@ -22,7 +22,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { InvoiceRowActions } from './InvoiceRowActions'
+import { FileViewerModal } from './FileViewerModal'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
+import type { ApiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /** Delay before opening the detail drawer so a double-click can mean "edit" instead of "open". */
@@ -475,6 +477,7 @@ function BulkActionsBar({ count, totalAmount, currency, onCopyCsv, onCopyJson, o
 interface InvoiceTableProps {
   invoices: Invoice[]
   visibleColumns: string[]
+  api: ApiClient
   onViewDetails: (invoice: Invoice) => void
   onUpdate: (id: string, field: string, value: string | number | null) => Promise<void>
   onDeleteSelected: (ids: string[]) => Promise<void>
@@ -485,13 +488,14 @@ interface InvoiceTableProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function InvoiceTable({
-  invoices, visibleColumns, onViewDetails,
+  invoices, visibleColumns, api, onViewDetails,
   onUpdate, onDeleteSelected, onCopySelected, onDownloadSelected,
 }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
+  const [viewingFile, setViewingFile] = useState<Invoice | null>(null)
 
   const pendingDrawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelPendingDrawer = useCallback(() => {
@@ -740,6 +744,30 @@ export function InvoiceTable({
         </div>
       ),
     },
+    // ── File ──
+    {
+      id: 'file',
+      header: 'File',
+      cell: ({ row }) => {
+        const { fileName } = row.original
+        const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setViewingFile(row.original) }}
+                className="rounded-md bg-slate-100 dark:bg-white/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 hover:bg-accent/15 hover:text-accent dark:hover:text-accent transition-colors"
+              >
+                {ext || 'file'}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>View original file</TooltipContent>
+          </Tooltip>
+        )
+      },
+      enableSorting: false,
+    },
     // ── Uploaded ──
     {
       accessorKey: 'createdAt',
@@ -759,7 +787,7 @@ export function InvoiceTable({
 
   const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
-    if (id === 'select' || id === 'actions') return true
+    if (id === 'select' || id === 'actions' || id === 'file') return true
     return !id || visibleColumns.includes(id)
   }), [columns, visibleColumns])
 
@@ -874,6 +902,14 @@ export function InvoiceTable({
         onDelete={() => onDeleteSelected(selectedInvoices.map((i) => i.id)).then(() => setRowSelection({}))}
         onClear={() => setRowSelection({})}
       />
+
+      {viewingFile && (
+        <FileViewerModal
+          invoice={viewingFile}
+          api={api}
+          onClose={() => setViewingFile(null)}
+        />
+      )}
     </div>
   )
 }

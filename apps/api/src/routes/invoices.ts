@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import path from 'node:path'
 import { z } from 'zod'
 import { requireAuth } from '../plugins/clerk.js'
 import { saveUploadedFile } from '../lib/storage.js'
@@ -314,6 +316,42 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
     return reply.status(204).send()
+  })
+
+  // GET /invoices/:id/file — stream the original uploaded file back to the client
+  fastify.get('/invoices/:id/file', { preHandler: [requireAuth] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const dbUserId = await resolveDbUserId(request.userId!)
+    const invoice = await db.invoice.findUnique({ where: { id }, select: { userId: true, filePath: true, fileName: true } })
+
+    if (!invoice || invoice.userId !== dbUserId) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
+    }
+    if (!invoice.filePath) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Original file not available', statusCode: 404 })
+    }
+
+    // Verify the file actually exists on disk before streaming
+    try { await stat(invoice.filePath) } catch {
+      return reply.status(404).send({ error: 'Not Found', message: 'File not found on disk', statusCode: 404 })
+    }
+
+    const ext = path.extname(invoice.fileName ?? invoice.filePath).toLowerCase().slice(1)
+    const MIME: Record<string, string> = {
+      pdf: 'application/pdf',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      webp: 'image/webp',
+      heic: 'image/heic',
+    }
+    const contentType = MIME[ext] ?? 'application/octet-stream'
+
+    reply.header('Content-Type', contentType)
+    reply.header('Content-Disposition', `inline; filename="${invoice.fileName ?? 'invoice'}"`)
+    reply.header('Cache-Control', 'private, max-age=300')
+
+    return reply.send(createReadStream(invoice.filePath))
   })
 
   // POST /invoices/:id/unlock — retry a password-protected PDF with a supplied password

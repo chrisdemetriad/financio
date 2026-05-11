@@ -299,6 +299,7 @@ export function InvoicesPage() {
       <InvoiceTable
         invoices={invoices}
         visibleColumns={visibleColumns}
+        api={api}
         onViewDetails={setSelectedInvoice}
         onUpdate={handleUpdate}
         onDeleteSelected={handleDeleteSelected}
