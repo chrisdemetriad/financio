@@ -40,7 +40,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | No LangChain / Vercel AI SDK | Plain `openai` npm package | 2–3 agents = ~50 lines of async functions. No framework needed. Vercel AI SDK is unrelated to Vercel hosting but adds abstraction we'd fight. Plain SDK gives full control. |
 | REST not tRPC | REST | Simpler mental model, no codegen step, easier to test with curl/Postman, decoupled frontend and backend. |
 | Clerk deferred | Auth added at commit 5–6 | App is internal/personal. `user_id` column is **nullable** in schema from day one — do not remove it. Wire Clerk up at commits 5–6 as planned, make non-nullable then. |
-| Scale to zero | App Runner (AWS) + Cloud Run (GCP) | Side project — pay nothing when idle. Not ECS Fargate, not GKE. Both scale to zero automatically. |
+| Managed container target | ECS Express Mode (AWS) + Cloud Run (GCP) | AWS closed App Runner to new customers, so AWS now uses ECS Express Mode as the closest managed replacement. Cloud Run remains the true scale-to-zero path on GCP. |
 | Dual cloud purpose | AWS + GCP both active | Deliberate learning split: Terraform on AWS, Pulumi (TypeScript SDK) on GCP. Logo storage actively uses **both** S3 and GCS as a concrete cross-cloud exercise. |
 | Horizontal scaling only | More instances, not bigger ones | Containers scale horizontally. `/monitoring` shows instance *count* going up/down during k6 load tests — that is the intended scaling demo. |
 | Dark mode default | Tailwind dark class strategy | Toggle in `/settings`, persisted to `localStorage`. Dark is the default. |
@@ -73,7 +73,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | Export | xlsx (SheetJS) + @react-pdf/renderer | XLSX and styled PDF exports |
 | Auth | Clerk | Magic-link + OAuth, ~30 min integration, deferred |
 | Monorepo | pnpm workspaces + Turborepo | Independent `apps/web` and `apps/api` |
-| IaC (AWS) | Terraform | Manages RDS, S3, App Runner, ECR |
+| IaC (AWS) | Terraform | Manages RDS, S3, ECR, ECS Express IAM/runtime config |
 | IaC (GCP) | Pulumi (TypeScript SDK) | Manages Cloud SQL, GCS, Cloud Run, Artifact Registry |
 | CI/CD | GitHub Actions + OIDC | No long-lived cloud credentials in secrets |
 | Testing | Playwright (e2e) + Vitest (unit) + k6 (load) | Full testing story |
@@ -189,15 +189,15 @@ File hash enables duplicate detection on upload.
 
 ## Infrastructure
 
-Both clouds run **identical services**. The primary goal is to practice both Terraform (AWS) and Pulumi (GCP) and have live infrastructure for the monitoring/scaling demo.
+Both clouds run **comparable managed container services**, but they are no longer identical. The original AWS App Runner plan was replaced with ECS Express Mode because AWS closed App Runner to new customers. The primary goal is still to practice both Terraform (AWS) and Pulumi (GCP) and have live infrastructure for the monitoring/scaling demo.
 
-### AWS (Terraform)
-- **App Runner** — hosts Fastify API, scales to zero, no ECS/load balancer complexity
+### AWS (Terraform + ECS Express workflow)
+- **ECS Express Mode** — hosts the Fastify API using an ECS-managed ALB/Fargate stack. This replaced App Runner after AWS closed App Runner to new customers.
 - **RDS PostgreSQL** — managed Postgres, Multi-AZ optional
 - **S3 Bucket** — invoice files + vendor logos (private, signed URLs)
 - **ECR** — container image registry
 - **CloudFront + S3** — static frontend hosting
-- **CloudWatch** — metrics for the `/monitoring` page
+- **CloudWatch / ECS APIs** — metrics and task counts for the `/monitoring` page
 
 ### GCP (Pulumi — TypeScript)
 - **Cloud Run** — hosts Fastify API, scales to zero
@@ -209,7 +209,7 @@ Both clouds run **identical services**. The primary goal is to practice both Ter
 
 ### CI/CD (GitHub Actions)
 - `test.yml` — install, lint, Vitest unit tests, Playwright e2e
-- `deploy-aws.yml` — build Docker image → ECR → update App Runner (OIDC, no long-lived keys)
+- `deploy-aws.yml` — build Docker image → ECR → create/update ECS Express Mode service (OIDC or access keys)
 - `deploy-gcp.yml` — build image → Artifact Registry → deploy to Cloud Run (Workload Identity Federation)
 
 ---
@@ -318,7 +318,7 @@ See `docs/current-state.md` for the implementation-status summary and table UX r
 
 | # | Commit | Description |
 |---|---|---|
-| 33 | `feat: terraform aws` | App Runner, RDS Postgres, S3, ECR, IAM roles, `terraform.tfvars.example` |
+| 33 | `feat: terraform aws` | RDS Postgres, S3, ECR, ECS Express IAM/runtime config, `terraform.tfvars.example` |
 | 34 | `feat: pulumi gcp` | Cloud Run, Cloud SQL, GCS, Artifact Registry, service accounts |
 | 35 | `feat: makefile` | `make infra-up-aws`, `make infra-down-aws`, `make infra-up-gcp`, `make infra-down-gcp` |
 | 36 | `feat: github actions ci` | `test.yml` — lint, Vitest, Playwright |
@@ -328,7 +328,7 @@ See `docs/current-state.md` for the implementation-status summary and table UX r
 
 | # | Commit | Description |
 |---|---|---|
-| 38 | `feat: metrics endpoint` | `GET /metrics` — polls App Runner `CurrentInstanceCount` + Cloud Run `container/instance_count` |
+| 38 | `feat: metrics endpoint` | `GET /metrics` — polls ECS task counts on AWS + Cloud Run `container/instance_count` |
 | 39 | `feat: monitoring page` | `/monitoring` route, polls every 4s, live instance count cards per cloud, animated add/remove |
 | 40 | `feat: k6 load test` | `scripts/load-test.js`, ramps 0→50 VUs over 30s, targets upload endpoint, README instructions |
 

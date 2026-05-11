@@ -3,8 +3,8 @@
  *
  * Ramps from 0 → 50 virtual users over 30s, holds for 60s, then ramps down.
  * Each VU posts a real minimal PDF to POST /invoices/upload and checks the
- * 202 response. Keep the /monitoring page open to watch App Runner / Cloud
- * Run add instances in real time.
+ * 202 response. Keep the /monitoring page open to watch ECS Express Mode /
+ * Cloud Run add instances in real time.
  *
  * Prerequisites:
  *   brew install k6        # macOS
@@ -16,7 +16,7 @@
  *
  * Run (against production):
  *   k6 run scripts/load-test.js \
- *     -e API_URL=https://YOUR_APP_RUNNER_URL \
+ *     -e API_URL=https://YOUR_DEPLOYED_API_URL \
  *     -e AUTH_TOKEN=your_clerk_bearer_token
  *
  * Run with HTML report:
@@ -44,7 +44,7 @@ export const options = {
     { duration: '30s', target: 50 },  // stress: ramp to 50
     { duration: '60s', target: 50 },  // hold at 50 (watch instances scale up)
     { duration: '30s', target: 20 },  // partial ramp-down
-    { duration: '30s', target: 0 },   // cool-down (watch scale-to-zero begin)
+    { duration: '30s', target: 0 },   // cool-down (watch services scale back down)
   ],
 
   thresholds: {

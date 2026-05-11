@@ -12,7 +12,7 @@ data "aws_subnets" "default" {
 # Security group: allow inbound Postgres from within the VPC only
 resource "aws_security_group" "rds" {
   name        = "${var.app_name}-rds"
-  description = "Allow Postgres from App Runner VPC connector"
+  description = "Allow Postgres from ECS tasks in the default VPC"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -53,7 +53,7 @@ resource "aws_db_instance" "postgres" {
   publicly_accessible     = false
   skip_final_snapshot     = true
   deletion_protection     = false
-  backup_retention_period = 7
+  backup_retention_period = 1
 
   lifecycle {
     prevent_destroy = true

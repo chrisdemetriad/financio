@@ -1,61 +1,113 @@
 data "aws_caller_identity" "current" {}
 
-# ── App Runner access role (to pull from ECR) ──────────────────────────────
-resource "aws_iam_role" "apprunner_access" {
-  name = "${var.app_name}-apprunner-access"
+# ── ECS Express roles ────────────────────────────────────────────────────────
+
+resource "aws_iam_role" "ecs_task_execution" {
+  name = "${var.app_name}-ecs-task-execution"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Service = "build.apprunner.amazonaws.com" }
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
       Action    = "sts:AssumeRole"
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "apprunner_access_ecr" {
-  role       = aws_iam_role.apprunner_access.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_managed" {
+  role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ── App Runner instance role (S3 + CloudWatch) ─────────────────────────────
-resource "aws_iam_role" "apprunner_instance" {
-  name = "${var.app_name}-apprunner-instance"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "tasks.apprunner.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "apprunner_instance_s3" {
-  name = "s3-assets"
-  role = aws_iam_role.apprunner_instance.id
+resource "aws_iam_role_policy" "ecs_task_execution_ssm" {
+  name = "${var.app_name}-ecs-task-execution-ssm"
+  role = aws_iam_role.ecs_task_execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParameterHistory"
+        ]
+        Resource = [
+          aws_ssm_parameter.cors_origin.arn,
+          aws_ssm_parameter.database_url.arn,
+          aws_ssm_parameter.clerk_secret_key.arn,
+          aws_ssm_parameter.openai_api_key.arn,
+          aws_ssm_parameter.brandfetch_api_key.arn
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "ecs_infrastructure" {
+  name = "${var.app_name}-ecs-infrastructure"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
-      Resource = [
-        aws_s3_bucket.assets.arn,
-        "${aws_s3_bucket.assets.arn}/*"
-      ]
+      Sid       = "AllowAccessInfrastructureForECSExpressServices"
+      Effect    = "Allow"
+      Principal = { Service = "ecs.amazonaws.com" }
+      Action    = "sts:AssumeRole"
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "apprunner_instance_cloudwatch" {
-  role       = aws_iam_role.apprunner_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+resource "aws_iam_role_policy_attachment" "ecs_infrastructure_managed" {
+  role       = aws_iam_role.ecs_infrastructure.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices"
 }
 
-# ── GitHub Actions OIDC (keyless deploys) ─────────────────────────────────
+resource "aws_iam_role" "ecs_task" {
+  name = "${var.app_name}-ecs-task"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "ecs_task_app" {
+  name = "${var.app_name}-ecs-task-app"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.assets.arn,
+          "${aws_s3_bucket.assets.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = ["ecs:DescribeServices"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ── GitHub Actions OIDC (keyless deploys) ────────────────────────────────────
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
@@ -107,9 +159,30 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = ["apprunner:UpdateService", "apprunner:DescribeService"]
-        Resource = aws_apprunner_service.api.arn
+        Effect = "Allow"
+        Action = [
+          "ecs:CreateCluster",
+          "ecs:RegisterTaskDefinition",
+          "ecs:CreateExpressGatewayService",
+          "ecs:UpdateExpressGatewayService",
+          "ecs:DescribeExpressGatewayService",
+          "ecs:DescribeClusters",
+          "ecs:DescribeServices",
+          "ecs:ListServiceDeployments",
+          "ecs:DescribeServiceDeployments",
+          "ecs:TagResource",
+          "ecs:UntagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          aws_iam_role.ecs_task_execution.arn,
+          aws_iam_role.ecs_infrastructure.arn,
+          aws_iam_role.ecs_task.arn
+        ]
       }
     ]
   })
