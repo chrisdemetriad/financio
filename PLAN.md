@@ -51,7 +51,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | Layer | Choice | Reason |
 |---|---|---|
 | Frontend | React 19 + Vite + TypeScript | Fast dev loop, no SSR needed, internal tool |
-| Styling | Tailwind CSS + Shadcn/ui | Utility-first, consistent dark theme |
+| Styling | Tailwind CSS + Shadcn/ui | Utility-first; **light and dark** with class-based `dark:` variant |
 | Tables | TanStack Table | Sorting, filtering, column visibility, zero-cost |
 | File drops | react-dropzone | Full-page drag target, file validation |
 | Toasts | Sonner | Lightweight, dark-mode-ready |
@@ -97,7 +97,8 @@ financio/
 
 ## Design System
 
-- **Theme**: dark-first (background `#13141a`, card surface `#1c1e26`)
+- **Theme**: dark-first (background `#13141a`, card surface `#1c1e26`), with a **first-class light mode** (CSS variables flip surfaces to white / light grey — see `index.css`). Users toggle via Settings; Tailwind uses **class-based** `dark:` (`@custom-variant dark` on `.dark`).
+- **Light + dark parity (mandatory for new UI)**: Every new surface, floating bar, modal, and control must use paired classes — **base styles for light**, `dark:` overrides for dark — not a single dark-only palette. Verify both themes before shipping. Overlays and “command bar” patterns should use `bg-surface`, `border-slate-200` + `dark:border-white/10`, and readable text (`text-slate-800` / `dark:text-slate-300`), never `bg-slate-900` without a light counterpart.
 - **Font**: Geist Sans (bundled with Shadcn)
 - **Accent**: single blue `#4F7DFA` — active nav, primary buttons, links
 - **Status pills**: Overdue (red), Due Soon (amber), Paid (green), Processing (blue)

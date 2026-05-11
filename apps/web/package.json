@@ -23,6 +23,7 @@
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
+    "react-day-picker": "9",
     "react-dom": "^19.2.5",
     "react-dropzone": "^15.0.0",
     "react-router-dom": "^7.15.0",

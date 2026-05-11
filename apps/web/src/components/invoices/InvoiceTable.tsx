@@ -6,14 +6,29 @@ import {
   flexRender,
   type ColumnDef,
   type SortingState,
+  type RowSelectionState,
 } from '@tanstack/react-table'
-import { useState, memo } from 'react'
-import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Search, X } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
+import {
+  ArrowUpDown, ArrowUp, ArrowDown, ExternalLink,
+  Search, X, Copy, Download, Trash2, CalendarIcon,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { InvoiceRowActions } from './InvoiceRowActions'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
 import { cn } from '@/lib/utils'
+
+/** Delay before opening the detail drawer so a double-click can mean "edit" instead of "open". */
+const DRAWER_OPEN_DELAY_MS = 280
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
   processing: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
@@ -22,7 +37,6 @@ const STATUS_STYLES: Record<string, string> = {
   awaiting_password: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
 }
 
-// Map column id → confidence key
 const CONFIDENCE_MAP: Record<string, keyof InvoiceConfidence> = {
   invoiceNumber: 'invoiceNumber',
   invoiceDate: 'invoiceDate',
@@ -31,14 +45,36 @@ const CONFIDENCE_MAP: Record<string, keyof InvoiceConfidence> = {
   currency: 'currency',
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function confidenceBg(invoice: Invoice, colId: string): string {
   const key = CONFIDENCE_MAP[colId]
   if (!key) return ''
   const val = (invoice.confidence as InvoiceConfidence)?.[key]
   if (val === undefined || val === null) return ''
-  if (val < 0.6) return 'bg-amber-500/10'
-  return ''
+  return val < 0.6 ? 'bg-amber-500/10' : ''
 }
+
+function fmt(date: string | null) {
+  if (!date) return '—'
+  return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function money(value: number | null, currency: string | null) {
+  if (value === null) return '—'
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: currency ?? 'GBP',
+    minimumFractionDigits: 2,
+  }).format(value)
+}
+
+function isOverdue(invoice: Invoice) {
+  if (!invoice.dueDate || invoice.status === 'complete') return false
+  return new Date(invoice.dueDate) < new Date()
+}
+
+// ─── Small reusable components ────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -61,29 +97,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const VendorAvatar = memo(function VendorAvatar({
-  vendor,
-  logoUrl,
-  logoBgColor,
-}: {
-  vendor: string | null
-  logoUrl: string | null
-  logoBgColor: string | null
-}) {
+  vendor, logoUrl, logoBgColor,
+}: { vendor: string | null; logoUrl: string | null; logoBgColor: string | null }) {
   const [imgError, setImgError] = useState(false)
   const initials = vendor?.slice(0, 2).toUpperCase() ?? '?'
-
   if (logoUrl && !imgError) {
     return (
-      <div
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-        style={{ backgroundColor: logoBgColor ?? '#1c1e26' }}
-      >
-        <img
-          src={logoUrl}
-          alt={vendor ?? ''}
-          className="h-5 w-5 object-contain"
-          onError={() => setImgError(true)}
-        />
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+        style={{ backgroundColor: logoBgColor ?? '#1c1e26' }}>
+        <img src={logoUrl} alt={vendor ?? ''} className="h-5 w-5 object-contain"
+          onError={() => setImgError(true)} />
       </div>
     )
   }
@@ -94,53 +117,458 @@ const VendorAvatar = memo(function VendorAvatar({
   )
 })
 
-function fmt(date: string | null) {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+/** Shows a dashed amber underline + tooltip when a field was manually edited. */
+function EditedIndicator({ isEdited, children }: { isEdited: boolean; children: React.ReactNode }) {
+  if (!isEdited) return <>{children}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="border-b border-dashed border-amber-400/70 pb-px">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">Manually edited</TooltipContent>
+    </Tooltip>
+  )
 }
 
-function money(value: number | null, currency: string | null) {
-  if (value === null) return '—'
-  return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency: currency ?? 'GBP',
-    minimumFractionDigits: 2,
-  }).format(value)
+/**
+ * Auto-focuses the input on mount (avoids the `autoFocus` HTML attribute
+ * which biome flags as an a11y issue).
+ */
+function FocusedInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { ref.current?.focus() }, [])
+  return <input ref={ref} {...props} />
 }
+
+/** Display cell that toggles to an edit input on double-click. */
+function EditCell({
+  rowId, field, rawValue, inputType, isEdited, editingCell,
+  onStartEdit, onCommit, onCancel, onCancelPendingDrawer, className, children,
+}: {
+  rowId: string
+  field: string
+  rawValue: string
+  inputType: 'text' | 'date' | 'number'
+  isEdited: boolean
+  editingCell: { rowId: string; field: string } | null
+  className?: string
+  onStartEdit: (rowId: string, field: string) => void
+  onCommit: (value: string) => void
+  onCancel: () => void
+  /** Clears debounced "open detail drawer" so a double-click can edit without opening the drawer first. */
+  onCancelPendingDrawer?: () => void
+  children: React.ReactNode
+}) {
+  const isEditing = editingCell?.rowId === rowId && editingCell?.field === field
+  if (isEditing) {
+    return (
+      <FocusedInput
+        type={inputType}
+        defaultValue={rawValue}
+        step={inputType === 'number' ? '0.01' : undefined}
+        className={cn(
+          'w-full rounded border border-accent/40 bg-white dark:bg-white/8 px-1.5 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50 text-slate-800 dark:text-slate-200',
+          inputType === 'number' && 'text-right font-mono',
+          className,
+        )}
+        onBlur={(e) => onCommit(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+          e.stopPropagation()
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    )
+  }
+  return (
+    // Using <button> here satisfies a11y: double-click activates an action
+    <button
+      type="button"
+      title="Double-click to edit"
+      onDoubleClick={(e) => {
+        onCancelPendingDrawer?.()
+        e.stopPropagation()
+        onStartEdit(rowId, field)
+      }}
+      className={cn('cursor-default text-left', className)}
+    >
+      <EditedIndicator isEdited={isEdited}>
+        {children}
+      </EditedIndicator>
+    </button>
+  )
+}
+
+// ─── Filter bar ───────────────────────────────────────────────────────────────
+
+interface Filters { text: string; status: string; currency: string; dateFrom: string; dateTo: string }
+const EMPTY_FILTERS: Filters = { text: '', status: 'all', currency: 'all', dateFrom: '', dateTo: '' }
+
+function activeFilterCount(f: Filters) {
+  return (f.text ? 1 : 0) + (f.status !== 'all' ? 1 : 0) + (f.currency !== 'all' ? 1 : 0) +
+    (f.dateFrom ? 1 : 0) + (f.dateTo ? 1 : 0)
+}
+
+/** Format a YYYY-MM-DD string to a short display label, e.g. "12 Mar 2026" */
+function fmtFilterDate(iso: string) {
+  if (!iso) return null
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const triggerCls =
+  'h-9 w-auto min-w-[130px] rounded-lg border border-border bg-white dark:bg-white/4 px-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/6 transition-colors'
+
+function DatePickerButton({
+  value, placeholder, onChange,
+}: { value: string; placeholder: string; onChange: (iso: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = value ? new Date(value) : undefined
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              triggerCls,
+              'flex items-center gap-2',
+              value ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500',
+            )}
+          />
+        }
+      >
+        <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{value ? fmtFilterDate(value) : placeholder}</span>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" className="p-0">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(day) => {
+            onChange(day ? day.toISOString().slice(0, 10) : '')
+            setOpen(false)
+          }}
+          initialFocus
+        />
+        {value && (
+          <div className="border-t border-border px-3 py-2">
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false) }}
+              className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            >
+              Clear date
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function FilterBar({ filters, currencies, onChange }: {
+  filters: Filters; currencies: string[]; onChange: (f: Filters) => void
+}) {
+  const count = activeFilterCount(filters)
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Text search */}
+      <div className="relative min-w-[200px] flex-1">
+        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <input
+          type="text"
+          value={filters.text}
+          onChange={(e) => onChange({ ...filters, text: e.target.value })}
+          placeholder="Search vendor, invoice #…"
+          className="h-9 w-full rounded-lg border border-border bg-white dark:bg-white/4 py-2 pl-9 pr-9 text-sm text-slate-800 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+        />
+        {filters.text && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...filters, text: '' })}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Status */}
+      <Select value={filters.status} onValueChange={(v: string) => onChange({ ...filters, status: v })}>
+        <SelectTrigger className={triggerCls}>
+          <SelectValue placeholder="All statuses" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          <SelectItem value="complete">Complete</SelectItem>
+          <SelectItem value="processing">Processing</SelectItem>
+          <SelectItem value="error">Error</SelectItem>
+          <SelectItem value="awaiting_password">Locked</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Currency — only when multiple exist */}
+      {currencies.length > 1 && (
+        <Select value={filters.currency} onValueChange={(v: string) => onChange({ ...filters, currency: v })}>
+          <SelectTrigger className={cn(triggerCls, 'min-w-[110px]')}>
+            <SelectValue placeholder="All currencies" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All currencies</SelectItem>
+            {currencies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Date range — Popover + Calendar */}
+      <div className="flex items-center gap-1.5">
+        <DatePickerButton
+          value={filters.dateFrom}
+          placeholder="From date"
+          onChange={(v) => onChange({ ...filters, dateFrom: v })}
+        />
+        <span className="text-xs text-slate-400">–</span>
+        <DatePickerButton
+          value={filters.dateTo}
+          placeholder="To date"
+          onChange={(v) => onChange({ ...filters, dateTo: v })}
+        />
+      </div>
+
+      {/* Clear all filters */}
+      {count > 0 && (
+        <button
+          type="button"
+          onClick={() => onChange(EMPTY_FILTERS)}
+          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 dark:hover:border-white/20 dark:hover:text-slate-300"
+        >
+          <X className="h-3 w-3" />
+          Clear {count > 1 ? `${count} filters` : 'filter'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Floating bulk-actions bar ────────────────────────────────────────────────
+
+function BulkActionsBar({ count, totalAmount, currency, onCopyCsv, onCopyJson, onDownloadExcel, onDelete, onClear }: {
+  count: number; totalAmount: number | null; currency: string | null
+  onCopyCsv: () => void; onCopyJson: () => void; onDownloadExcel: () => void
+  onDelete: () => void; onClear: () => void
+}) {
+  if (count === 0) return null
+  const totalLabel = totalAmount !== null ? money(totalAmount, currency) : null
+  return (
+    <div className="fixed bottom-6 left-1/2 z-40 max-w-[calc(100vw-2rem)] -translate-x-1/2 animate-in slide-in-from-bottom-3 fade-in duration-200">
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-2 rounded-2xl px-4 py-2.5 sm:gap-3',
+          /* Light: elevated card that matches the rest of the app. Dark: deep neutral bar. */
+          'border border-slate-200 bg-surface text-slate-700 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5',
+          'dark:border-white/10 dark:bg-[#0f1117] dark:text-slate-300 dark:shadow-2xl dark:shadow-black/40 dark:ring-0',
+        )}
+      >
+        <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-300">
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent/20 px-1.5 text-xs font-bold text-accent">
+            {count}
+          </span>
+          selected
+          {totalLabel && (
+            <span className="ml-1 text-slate-500 dark:text-slate-400">
+              · <span className="font-medium text-slate-900 dark:text-slate-100">{totalLabel}</span>
+            </span>
+          )}
+        </span>
+        <div className="hidden h-4 w-px bg-slate-200 sm:block dark:bg-white/10" />
+        <button
+          type="button"
+          onClick={onCopyCsv}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          CSV
+        </button>
+        <button
+          type="button"
+          onClick={onCopyJson}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          JSON
+        </button>
+        <button
+          type="button"
+          onClick={onDownloadExcel}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Excel
+        </button>
+        <div className="hidden h-4 w-px bg-slate-200 sm:block dark:bg-white/10" />
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          className="ml-0.5 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-white/5 dark:hover:text-slate-300"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface InvoiceTableProps {
   invoices: Invoice[]
   visibleColumns: string[]
   onViewDetails: (invoice: Invoice) => void
+  onUpdate: (id: string, field: string, value: string | number | null) => Promise<void>
+  onDeleteSelected: (ids: string[]) => Promise<void>
+  onCopySelected: (invoices: Invoice[], format: 'csv' | 'json') => void
+  onDownloadSelected: (invoices: Invoice[]) => void
 }
 
-export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: InvoiceTableProps) {
-  // Default sort: invoiceDate desc (always visible). Never sort by a column that
-  // might be hidden — TanStack throws "[Table] Column with id X does not exist".
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
-  const [globalFilter, setGlobalFilter] = useState('')
+// ─── Main component ───────────────────────────────────────────────────────────
 
-  const allColumns: ColumnDef<Invoice>[] = [
+export function InvoiceTable({
+  invoices, visibleColumns, onViewDetails,
+  onUpdate, onDeleteSelected, onCopySelected, onDownloadSelected,
+}: InvoiceTableProps) {
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
+
+  const pendingDrawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelPendingDrawer = useCallback(() => {
+    if (pendingDrawerTimerRef.current !== null) {
+      clearTimeout(pendingDrawerTimerRef.current)
+      pendingDrawerTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleOpenDetails = useCallback(
+    (inv: Invoice) => {
+      cancelPendingDrawer()
+      pendingDrawerTimerRef.current = setTimeout(() => {
+        pendingDrawerTimerRef.current = null
+        onViewDetails(inv)
+      }, DRAWER_OPEN_DELAY_MS)
+    },
+    [cancelPendingDrawer, onViewDetails],
+  )
+
+  useEffect(() => () => cancelPendingDrawer(), [cancelPendingDrawer])
+
+  const startEdit = useCallback((rowId: string, field: string) => {
+    setEditingCell({ rowId, field })
+  }, [])
+
+  const cancelEdit = useCallback(() => setEditingCell(null), [])
+
+  const commitEdit = useCallback(async (invoice: Invoice, field: string, rawValue: string) => {
+    setEditingCell(null)
+    let value: string | number | null = rawValue.trim() === '' ? null : rawValue.trim()
+    if (field === 'total') value = rawValue.trim() === '' ? null : parseFloat(rawValue)
+
+    // Don't save — or mark as edited — when nothing actually changed
+    const original = invoice[field as keyof Invoice]
+    const originalStr = original === null || original === undefined ? '' : String(original)
+    const newStr = value === null ? '' : String(value)
+    if (originalStr === newStr) return
+
+    await onUpdate(invoice.id, field, value)
+  }, [onUpdate])
+
+  const preFiltered = useMemo(() => invoices.filter((inv) => {
+    if (filters.status !== 'all' && inv.status !== filters.status) return false
+    if (filters.currency !== 'all' && inv.currency !== filters.currency) return false
+    if (filters.dateFrom && inv.invoiceDate && inv.invoiceDate < filters.dateFrom) return false
+    if (filters.dateTo && inv.invoiceDate && inv.invoiceDate > filters.dateTo) return false
+    return true
+  }), [invoices, filters])
+
+  const currencies = useMemo(
+    () => [...new Set(invoices.map((i) => i.currency).filter(Boolean))] as string[],
+    [invoices],
+  )
+
+  const selectedInvoices = useMemo(
+    () => Object.keys(rowSelection).map((idx) => preFiltered[Number(idx)]).filter(Boolean) as Invoice[],
+    [rowSelection, preFiltered],
+  )
+
+  const selectedTotal = useMemo(() => {
+    const totals = selectedInvoices.map((i) => i.total).filter((t): t is number => t !== null)
+    return totals.length ? totals.reduce((a, b) => a + b, 0) : null
+  }, [selectedInvoices])
+
+  const selectedCurrency = useMemo(() => {
+    const unique = [...new Set(selectedInvoices.map((i) => i.currency).filter(Boolean))]
+    return unique.length === 1 ? (unique[0] as string) : null
+  }, [selectedInvoices])
+
+  const overdueCount = useMemo(() => invoices.filter(isOverdue).length, [invoices])
+
+  // Column definitions — no hooks called inside; callbacks are stable refs
+  const columns: ColumnDef<Invoice>[] = useMemo(() => [
+    // ── Select ──
+    {
+      id: 'select',
+      header: ({ table }) => (
+        <input type="checkbox"
+          checked={table.getIsAllPageRowsSelected()}
+          ref={(el) => { if (el) el.indeterminate = table.getIsSomePageRowsSelected() }}
+          onChange={table.getToggleAllPageRowsSelectedHandler()}
+          onClick={(e) => e.stopPropagation()}
+          className="h-3.5 w-3.5 rounded accent-accent cursor-pointer"
+        />
+      ),
+      cell: ({ row }) => (
+        <input type="checkbox"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          onClick={(e) => e.stopPropagation()}
+          className="h-3.5 w-3.5 rounded accent-accent cursor-pointer"
+        />
+      ),
+      enableSorting: false,
+    },
+    // ── Vendor ──
     {
       accessorKey: 'vendor',
       header: 'Vendor',
       cell: ({ row }) => {
-        const { vendor, vendorDomain, logoUrl, logoBgColor } = row.original
+        const { id, vendor, vendorDomain, logoUrl, logoBgColor, editedFields } = row.original
         return (
-            <div className="flex min-w-[140px] items-center gap-2.5">
+          <div className="flex min-w-[140px] items-center gap-2.5">
             <VendorAvatar vendor={vendor} logoUrl={logoUrl} logoBgColor={logoBgColor} />
             <div>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{vendor ?? '—'}</p>
+              <EditCell rowId={id} field="vendor" rawValue={vendor ?? ''} inputType="text"
+                isEdited={editedFields?.includes('vendor')} editingCell={editingCell}
+                onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'vendor', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+                className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                {vendor ?? '—'}
+              </EditCell>
               {vendorDomain && (
-                <a
-                  href={`https://${vendorDomain}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <a href={`https://${vendorDomain}`} target="_blank" rel="noreferrer"
                   className="flex items-center gap-0.5 text-xs text-slate-500 hover:text-violet-600 dark:hover:text-violet-400"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {vendorDomain}
-                  <ExternalLink className="h-2.5 w-2.5" />
+                  onClick={(e) => e.stopPropagation()}>
+                  {vendorDomain}<ExternalLink className="h-2.5 w-2.5" />
                 </a>
               )}
             </div>
@@ -148,113 +576,148 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
         )
       },
     },
+    // ── Invoice # ──
     {
       accessorKey: 'invoiceNumber',
       header: 'Invoice #',
-      cell: ({ row, getValue }) => (
-        <span className={cn('font-mono text-xs text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceNumber'))}>
-          {(getValue() as string | null) ?? '—'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { id, invoiceNumber, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="invoiceNumber" rawValue={invoiceNumber ?? ''} inputType="text"
+            isEdited={editedFields?.includes('invoiceNumber')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'invoiceNumber', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('font-mono text-xs text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceNumber'))}>
+            {invoiceNumber ?? '—'}
+          </EditCell>
+        )
+      },
     },
+    // ── Invoice Date ──
     {
       accessorKey: 'invoiceDate',
       header: 'Date',
-      cell: ({ row, getValue }) => (
-        <span className={cn('text-sm text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceDate'))}>
-          {fmt(getValue() as string | null)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { id, invoiceDate, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="invoiceDate" rawValue={invoiceDate ?? ''} inputType="date"
+            isEdited={editedFields?.includes('invoiceDate')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'invoiceDate', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('text-sm text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'invoiceDate'))}>
+            {fmt(invoiceDate)}
+          </EditCell>
+        )
+      },
     },
+    // ── Due Date ──
     {
       accessorKey: 'dueDate',
       header: 'Due',
-      cell: ({ row, getValue }) => (
-        <span className={cn('text-sm text-slate-700 dark:text-slate-300 rounded px-1', confidenceBg(row.original, 'dueDate'))}>
-          {fmt(getValue() as string | null)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { id, dueDate, editedFields } = row.original
+        const overdue = isOverdue(row.original)
+        return (
+          <div className="flex items-center gap-1.5">
+            <EditCell rowId={id} field="dueDate" rawValue={dueDate ?? ''} inputType="date"
+              isEdited={editedFields?.includes('dueDate')} editingCell={editingCell}
+              onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'dueDate', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+              className={cn(
+                'text-sm rounded px-1',
+                confidenceBg(row.original, 'dueDate'),
+                overdue ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300',
+              )}>
+              {fmt(dueDate)}
+            </EditCell>
+            {overdue && (
+              <Badge variant="outline" className="border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] px-1 py-0">
+                Overdue
+              </Badge>
+            )}
+          </div>
+        )
+      },
     },
+    // ── Total ──
     {
       accessorKey: 'total',
       header: () => <span className="text-right">Total</span>,
-      cell: ({ row }) => (
-        <span className={cn('block text-right font-mono text-sm font-medium text-slate-900 dark:text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
-          {money(row.original.total, row.original.currency)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { id, total, currency, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="total" rawValue={total?.toString() ?? ''} inputType="number"
+            isEdited={editedFields?.includes('total')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'total', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('block w-full text-right font-mono text-sm font-medium text-slate-900 dark:text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
+            {money(total, currency)}
+          </EditCell>
+        )
+      },
     },
+    // ── Currency ──
     {
       accessorKey: 'currency',
       header: 'CCY',
-      cell: ({ row, getValue }) => (
-        <span className={cn('text-xs font-medium text-slate-600 dark:text-slate-400', confidenceBg(row.original, 'currency'))}>
-          {(getValue() as string | null) ?? '—'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { id, currency, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="currency" rawValue={currency ?? ''} inputType="text"
+            isEdited={editedFields?.includes('currency')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'currency', v.toUpperCase())} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('text-xs font-medium text-slate-600 dark:text-slate-400', confidenceBg(row.original, 'currency'))}>
+            {currency ?? '—'}
+          </EditCell>
+        )
+      },
     },
+    // ── Status ──
     {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ getValue }) => <StatusBadge status={getValue() as string} />,
     },
+    // ── Uploaded ──
     {
       accessorKey: 'createdAt',
       header: 'Uploaded',
-      cell: ({ getValue }) => <span className="text-xs text-slate-500 dark:text-slate-500">{fmt(getValue() as string)}</span>,
+      cell: ({ getValue }) => (
+        <span className="text-xs text-slate-500 dark:text-slate-500">{fmt(getValue() as string)}</span>
+      ),
     },
-    // Actions column always visible
+    // ── Row actions ──
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />
-      ),
+      cell: ({ row }) => <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />,
       enableSorting: false,
     },
-  ]
+  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails])
 
-  const columns = allColumns.filter((col) => {
+  const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
-    if (id === 'actions') return true
+    if (id === 'select' || id === 'actions') return true
     return !id || visibleColumns.includes(id)
-  })
+  }), [columns, visibleColumns])
 
   const table = useReactTable({
-    data: invoices,
-    columns,
-    state: { sorting, globalFilter },
+    data: preFiltered,
+    columns: visibleCols,
+    state: { sorting, rowSelection, globalFilter: filters.text },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: (val) => setFilters((f) => ({ ...f, text: val as string })),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: 'includesString',
+    enableRowSelection: true,
   })
+
+  const selCount = Object.keys(rowSelection).length
+  const filterCount = activeFilterCount(filters)
 
   return (
     <div className="space-y-3">
-      {/* Search bar */}
       {invoices.length > 0 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          <input
-            type="text"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search invoices…"
-            className="w-full rounded-lg border border-border bg-white dark:bg-white/2 py-2 pl-9 pr-9 text-sm text-slate-800 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
-          />
-          {globalFilter && (
-            <button
-              type="button"
-              onClick={() => setGlobalFilter('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+        <FilterBar filters={filters} currencies={currencies} onChange={setFilters} />
       )}
 
       {invoices.length === 0 ? (
@@ -263,7 +726,10 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
         </div>
       ) : table.getRowModel().rows.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface px-6 py-8 text-center text-sm text-slate-500">
-          No invoices match <span className="text-slate-700 dark:text-slate-300">"{globalFilter}"</span>
+          No invoices match the current filters.{' '}
+          <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} className="text-accent hover:underline">
+            Clear filters
+          </button>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
@@ -272,21 +738,18 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id} className="border-border hover:bg-transparent">
                   {hg.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
+                    <TableHead key={header.id}
                       className="h-9 text-xs font-medium uppercase tracking-wide text-slate-500"
                       onClick={header.column.getToggleSortingHandler()}
-                      style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}
-                    >
+                      style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}>
                       <span className="flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() &&
-                          ({
-                            asc: <ArrowUp className="h-3 w-3 text-accent" />,
-                            desc: <ArrowDown className="h-3 w-3 text-accent" />,
-                          }[header.column.getIsSorted() as string] ?? (
-                            <ArrowUpDown className="h-3 w-3 opacity-30" />
-                          ))}
+                        {header.column.getCanSort() && ({
+                          asc: <ArrowUp className="h-3 w-3 text-accent" />,
+                          desc: <ArrowDown className="h-3 w-3 text-accent" />,
+                        }[header.column.getIsSorted() as string] ?? (
+                          <ArrowUpDown className="h-3 w-3 opacity-30" />
+                        ))}
                       </span>
                     </TableHead>
                   ))}
@@ -295,11 +758,17 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="group cursor-pointer border-white/4 hover:bg-white/[0.025]"
-                  onClick={() => onViewDetails(row.original)}
-                >
+                <TableRow key={row.id}
+                  className={cn(
+                    'group cursor-pointer border-white/4 transition-colors',
+                    isOverdue(row.original) ? 'bg-red-500/4 hover:bg-red-500/[0.07]' : 'hover:bg-white/2.5',
+                    row.getIsSelected() && 'bg-accent/6',
+                  )}
+                  onClick={() => {
+                    if (editingCell) return
+                    scheduleOpenDetails(row.original)
+                  }}
+                  onDoubleClick={cancelPendingDrawer}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -309,8 +778,36 @@ export function InvoiceTable({ invoices, visibleColumns, onViewDetails }: Invoic
               ))}
             </TableBody>
           </Table>
+
+          {/* Stats footer */}
+          <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-slate-500">
+            <span>
+              {table.getRowModel().rows.length} invoice{table.getRowModel().rows.length !== 1 ? 's' : ''}
+              {filterCount > 0 && ` (filtered from ${invoices.length})`}
+              {overdueCount > 0 && (
+                <span className="ml-2 text-red-500 dark:text-red-400">· {overdueCount} overdue</span>
+              )}
+            </span>
+            {selCount > 0 && (
+              <span className="text-slate-400">
+                {selCount} selected
+                {selectedTotal !== null && ` · ${money(selectedTotal, selectedCurrency)}`}
+              </span>
+            )}
+          </div>
         </div>
       )}
+
+      <BulkActionsBar
+        count={selCount}
+        totalAmount={selectedTotal}
+        currency={selectedCurrency}
+        onCopyCsv={() => onCopySelected(selectedInvoices, 'csv')}
+        onCopyJson={() => onCopySelected(selectedInvoices, 'json')}
+        onDownloadExcel={() => onDownloadSelected(selectedInvoices)}
+        onDelete={() => onDeleteSelected(selectedInvoices.map((i) => i.id)).then(() => setRowSelection({}))}
+        onClear={() => setRowSelection({})}
+      />
     </div>
   )
 }

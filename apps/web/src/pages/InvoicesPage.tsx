@@ -169,7 +169,7 @@ export function InvoicesPage() {
       processingIds.current.add(currentLocked.id)
       toast.success(`Unlocked — processing ${currentLocked.fileName}`)
       return 'ok'
-    } catch (err) {
+    } catch {
       const fresh = await api.getInvoices().catch(() => null)
       if (fresh) setInvoices(fresh)
       const stillLocked = fresh?.find((i) => i.id === currentLocked.id)?.status === 'awaiting_password'
@@ -189,6 +189,34 @@ export function InvoicesPage() {
     if (!completed.length) { toast.info('No completed invoices to export'); return }
     downloadByFormat(completed, format)
   }
+
+  const handleUpdate = useCallback(async (id: string, field: string, value: string | number | null) => {
+    try {
+      const updated = await api.patchInvoice(id, { [field]: value, editedField: field })
+      setInvoices((prev) => prev.map((inv) => inv.id === id ? updated : inv))
+      if (selectedInvoice?.id === id) setSelectedInvoice(updated)
+    } catch (err) {
+      toast.error(`Failed to save edit${err instanceof Error ? `: ${err.message}` : ''}`)
+    }
+  }, [api, selectedInvoice])
+
+  const handleDeleteSelected = useCallback(async (ids: string[]) => {
+    await Promise.allSettled(ids.map((id) => api.deleteInvoice(id)))
+    setInvoices((prev) => prev.filter((inv) => !ids.includes(inv.id)))
+    if (selectedInvoice && ids.includes(selectedInvoice.id)) setSelectedInvoice(null)
+    toast.success(`${ids.length} invoice${ids.length > 1 ? 's' : ''} deleted`)
+  }, [api, selectedInvoice])
+
+  const handleCopySelected = useCallback((selected: Invoice[], format: 'csv' | 'json') => {
+    const text = selected.map((inv) => invoiceToFormat(inv, format)).join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(`${selected.length} invoice${selected.length > 1 ? 's' : ''} copied as ${format.toUpperCase()}`)
+    }).catch(() => toast.error('Clipboard access denied'))
+  }, [])
+
+  const handleDownloadSelected = useCallback((selected: Invoice[]) => {
+    downloadByFormat(selected, 'xlsx')
+  }, [])
 
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
@@ -259,6 +287,10 @@ export function InvoicesPage() {
         invoices={invoices}
         visibleColumns={visibleColumns}
         onViewDetails={setSelectedInvoice}
+        onUpdate={handleUpdate}
+        onDeleteSelected={handleDeleteSelected}
+        onCopySelected={handleCopySelected}
+        onDownloadSelected={handleDownloadSelected}
       />
 
       {/* Detail sheet */}

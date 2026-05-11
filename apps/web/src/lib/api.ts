@@ -38,6 +38,24 @@ export function createApiClient(getToken: () => Promise<string | null>) {
     deleteInvoice: (id: string) =>
       request<void>(`/invoices/${id}`, { method: 'DELETE' }, getToken),
 
+    patchInvoice: (
+      id: string,
+      patch: {
+        vendor?: string | null
+        invoiceNumber?: string | null
+        invoiceDate?: string | null
+        dueDate?: string | null
+        total?: number | null
+        currency?: string | null
+        editedField?: string
+      },
+    ) =>
+      request<Invoice>(`/invoices/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }, getToken),
+
     unlockInvoice: (id: string, password: string) =>
       request<Invoice>(`/invoices/${id}/unlock`, {
         method: 'POST',

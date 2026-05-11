@@ -58,6 +58,7 @@ function formatInvoice(row: {
   total: unknown
   currency: string | null
   confidence: unknown
+  editedFields: string[]
   status: string
   createdAt: Date
   updatedAt: Date
@@ -80,6 +81,7 @@ function formatInvoice(row: {
     total: row.total !== null && row.total !== undefined ? Number(row.total) : null,
     currency: row.currency,
     confidence: (row.confidence as Invoice['confidence']) ?? {},
+    editedFields: row.editedFields ?? [],
     status: row.status.toLowerCase() as Invoice['status'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -213,6 +215,47 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     })()
 
     return reply.status(202).send({ duplicate: false, invoice: formatInvoice(invoice) })
+  })
+
+  // PATCH /invoices/:id — manually correct an extracted field
+  fastify.patch('/invoices/:id', { preHandler: [requireAuth] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const dbUserId = await resolveDbUserId(request.userId!)
+    const invoice = await db.invoice.findUnique({ where: { id } })
+    if (!invoice || invoice.userId !== dbUserId) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
+    }
+
+    const patchSchema = z.object({
+      vendor: z.string().nullable().optional(),
+      invoiceNumber: z.string().nullable().optional(),
+      invoiceDate: z.string().nullable().optional(),
+      dueDate: z.string().nullable().optional(),
+      total: z.number().nullable().optional(),
+      currency: z.string().max(3).nullable().optional(),
+      editedField: z.string().optional(),
+    })
+    const body = patchSchema.safeParse(request.body)
+    if (!body.success) {
+      return reply.status(400).send({ error: 'Bad Request', message: body.error.message, statusCode: 400 })
+    }
+
+    const { editedField, ...fields } = body.data
+    const updateData: Record<string, unknown> = {}
+    if (fields.vendor !== undefined) updateData.vendor = fields.vendor
+    if (fields.invoiceNumber !== undefined) updateData.invoiceNumber = fields.invoiceNumber
+    if (fields.invoiceDate !== undefined) updateData.invoiceDate = fields.invoiceDate ? new Date(fields.invoiceDate) : null
+    if (fields.dueDate !== undefined) updateData.dueDate = fields.dueDate ? new Date(fields.dueDate) : null
+    if (fields.total !== undefined) updateData.total = fields.total
+    if (fields.currency !== undefined) updateData.currency = fields.currency
+
+    if (editedField) {
+      const current = invoice.editedFields as string[]
+      updateData.editedFields = current.includes(editedField) ? current : [...current, editedField]
+    }
+
+    const updated = await db.invoice.update({ where: { id }, data: updateData })
+    return formatInvoice(updated)
   })
 
   // DELETE /invoices — clear all invoices for the authenticated user
