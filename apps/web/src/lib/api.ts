@@ -47,6 +47,9 @@ export function createApiClient(getToken: () => Promise<string | null>) {
         dueDate?: string | null
         total?: number | null
         currency?: string | null
+        tags?: string[]
+        paid?: boolean
+        paidDate?: string | null
         editedField?: string
       },
     ) =>
