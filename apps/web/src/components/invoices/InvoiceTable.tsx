@@ -568,6 +568,7 @@ export function InvoiceTable({
   }, [selectedInvoices])
 
   const overdueCount = useMemo(() => invoices.filter(isOverdue).length, [invoices])
+  const hasAnyTags = useMemo(() => invoices.some((invoice) => (invoice.tags?.length ?? 0) > 0), [invoices])
 
   // Column definitions — no hooks called inside; callbacks are stable refs
   const columns: ColumnDef<Invoice>[] = useMemo(() => [
@@ -633,6 +634,31 @@ export function InvoiceTable({
           </div>
         )
       },
+    },
+    // ── Tags / Categories ──
+    {
+      accessorKey: 'tags',
+      header: 'Categories',
+      cell: ({ row }) => {
+        const tags = row.original.tags ?? []
+        if (tags.length === 0) {
+          return <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
+        }
+
+        return (
+          <div className="flex max-w-[180px] flex-wrap gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-white/8 dark:text-slate-300"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )
+      },
+      enableSorting: false,
     },
     // ── Invoice # ──
     {
@@ -790,8 +816,9 @@ export function InvoiceTable({
   const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
     if (id === 'select' || id === 'actions' || id === 'file') return true
+    if (id === 'tags') return hasAnyTags || visibleColumns.includes('tags')
     return !id || visibleColumns.includes(id)
-  }), [columns, visibleColumns])
+  }), [columns, visibleColumns, hasAnyTags])
 
   const table = useReactTable({
     data: preFiltered,

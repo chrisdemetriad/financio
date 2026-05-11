@@ -7,6 +7,7 @@ import type { ExportFormat } from '@financio/types'
 
 export const ALL_COLUMNS = [
   { id: 'vendor', label: 'Vendor' },
+  { id: 'tags', label: 'Categories' },
   { id: 'invoiceNumber', label: 'Invoice #' },
   { id: 'invoiceDate', label: 'Date' },
   { id: 'dueDate', label: 'Due date' },
@@ -19,7 +20,7 @@ export const ALL_COLUMNS = [
 export type ColumnId = (typeof ALL_COLUMNS)[number]['id']
 
 const DEFAULT_VISIBLE: ColumnId[] = [
-  'vendor', 'invoiceNumber', 'invoiceDate', 'dueDate', 'total', 'currency', 'status',
+  'vendor', 'tags', 'invoiceNumber', 'invoiceDate', 'dueDate', 'total', 'currency', 'status',
 ]
 
 interface SettingsState {
