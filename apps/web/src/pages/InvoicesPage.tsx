@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@clerk/react'
 import { toast } from 'sonner'
 import { Trash2, Download, Command } from 'lucide-react'
@@ -17,6 +18,7 @@ import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
 import { PasswordModal } from '@/components/invoices/PasswordModal'
 import { InvoiceDetailSheet } from '@/components/invoices/InvoiceDetailSheet'
+import { FileViewerModal } from '@/components/invoices/FileViewerModal'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsModal } from '@/components/ShortcutsModal'
 import { createApiClient } from '@/lib/api'
@@ -35,10 +37,16 @@ export function InvoicesPage() {
   const { getToken } = useAuth()
   const { exportFormat, visibleColumns } = useSettings()
   const api = useMemo(() => createApiClient(() => getToken()), [getToken])
+  const { id: urlId } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const isDetailsRoute = location.pathname.endsWith('/details')
+  const isPreviewRoute = location.pathname.endsWith('/preview')
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [viewingFile, setViewingFile] = useState<Invoice | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -54,6 +62,22 @@ export function InvoicesPage() {
   useEffect(() => {
     api.getInvoices().then(setInvoices).catch(console.error)
   }, [api])
+
+  // Close panels when the URL no longer contains an invoice id (back button, Escape, close)
+  useEffect(() => {
+    if (!urlId) {
+      setSelectedInvoice(null)
+      setViewingFile(null)
+    }
+  }, [urlId])
+
+  // Open the right panel when deep-linking directly to /invoices/:id/details|preview
+  useEffect(() => {
+    if (!urlId || !invoices.length) return
+    const inv = invoices.find((i) => i.id === urlId) ?? null
+    if (isDetailsRoute) { setSelectedInvoice(inv); setViewingFile(null) }
+    else if (isPreviewRoute) { setViewingFile(inv); setSelectedInvoice(null) }
+  }, [urlId, isDetailsRoute, isPreviewRoute, invoices])
 
   // Keep processingIds in sync
   useEffect(() => {
@@ -106,7 +130,9 @@ export function InvoicesPage() {
         return
       }
       if (e.key === 'Escape') {
-        setShowPalette(false); setShowShortcuts(false); setSelectedInvoice(null)
+        setShowPalette(false)
+        setShowShortcuts(false)
+        if (selectedInvoice || viewingFile) { navigate('/invoices'); return }
         return
       }
       if (typing) return
@@ -115,7 +141,7 @@ export function InvoicesPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [selectedInvoice, viewingFile, navigate])
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -158,6 +184,8 @@ export function InvoicesPage() {
     processingIds.current.clear()
     setInvoices([])
     setSelectedInvoice(null)
+    setViewingFile(null)
+    navigate('/invoices')
     toast.success('All invoices cleared')
   }
 
@@ -195,10 +223,11 @@ export function InvoicesPage() {
       const updated = await api.patchInvoice(id, { [field]: value, editedField: field })
       setInvoices((prev) => prev.map((inv) => inv.id === id ? updated : inv))
       if (selectedInvoice?.id === id) setSelectedInvoice(updated)
+      if (viewingFile?.id === id) setViewingFile(updated)
     } catch (err) {
       toast.error(`Failed to save edit${err instanceof Error ? `: ${err.message}` : ''}`)
     }
-  }, [api, selectedInvoice])
+  }, [api, selectedInvoice, viewingFile])
 
   const handleDrawerUpdate = useCallback(async (
     id: string,
@@ -208,17 +237,19 @@ export function InvoicesPage() {
       const updated = await api.patchInvoice(id, patch)
       setInvoices((prev) => prev.map((inv) => inv.id === id ? updated : inv))
       if (selectedInvoice?.id === id) setSelectedInvoice(updated)
+      if (viewingFile?.id === id) setViewingFile(updated)
     } catch (err) {
       toast.error(`Failed to update${err instanceof Error ? `: ${err.message}` : ''}`)
     }
-  }, [api, selectedInvoice])
+  }, [api, selectedInvoice, viewingFile])
 
   const handleDeleteSelected = useCallback(async (ids: string[]) => {
     await Promise.allSettled(ids.map((id) => api.deleteInvoice(id)))
     setInvoices((prev) => prev.filter((inv) => !ids.includes(inv.id)))
-    if (selectedInvoice && ids.includes(selectedInvoice.id)) setSelectedInvoice(null)
+    if (selectedInvoice && ids.includes(selectedInvoice.id)) { setSelectedInvoice(null); navigate('/invoices') }
+    if (viewingFile && ids.includes(viewingFile.id)) { setViewingFile(null); navigate('/invoices') }
     toast.success(`${ids.length} invoice${ids.length > 1 ? 's' : ''} deleted`)
-  }, [api, selectedInvoice])
+  }, [api, selectedInvoice, viewingFile, navigate])
 
   const handleCopySelected = useCallback((selected: Invoice[], format: 'csv' | 'json') => {
     const text = selected.map((inv) => invoiceToFormat(inv, format)).join('\n')
@@ -299,8 +330,8 @@ export function InvoicesPage() {
       <InvoiceTable
         invoices={invoices}
         visibleColumns={visibleColumns}
-        api={api}
-        onViewDetails={setSelectedInvoice}
+        onViewDetails={(inv) => navigate(`/invoices/${inv.id}/details`)}
+        onViewFile={(inv) => navigate(`/invoices/${inv.id}/preview`)}
         onUpdate={handleUpdate}
         onDeleteSelected={handleDeleteSelected}
         onCopySelected={handleCopySelected}
@@ -310,9 +341,19 @@ export function InvoicesPage() {
       {/* Detail sheet */}
       <InvoiceDetailSheet
         invoice={selectedInvoice}
-        onClose={() => setSelectedInvoice(null)}
+        onClose={() => { setSelectedInvoice(null); navigate('/invoices') }}
         onUpdate={handleDrawerUpdate}
       />
+
+      {/* File viewer */}
+      {viewingFile && (
+        <FileViewerModal
+          key={viewingFile.id}
+          invoice={viewingFile}
+          api={api}
+          onClose={() => { setViewingFile(null); navigate('/invoices') }}
+        />
+      )}
 
       {/* Password modal queue */}
       {currentLocked && (

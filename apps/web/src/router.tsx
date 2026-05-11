@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AuthenticateWithRedirectCallback } from '@clerk/react'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
@@ -25,8 +25,11 @@ export function createRouter() {
         {
           element: <AppShell />,
           children: [
-            { path: '/', element: <InvoicesPage /> },
+            { index: true, element: <Navigate to="/dashboard" replace /> },
             { path: '/dashboard', element: <DashboardPage /> },
+            { path: '/invoices', element: <InvoicesPage /> },
+            { path: '/invoices/:id/details', element: <InvoicesPage /> },
+            { path: '/invoices/:id/preview', element: <InvoicesPage /> },
             { path: '/vendors', element: <VendorsPage /> },
             { path: '/settings', element: <SettingsPage /> },
             { path: '/monitoring', element: <MonitoringPage /> },

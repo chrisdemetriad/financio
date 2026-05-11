@@ -5,7 +5,7 @@ import { useSettings } from '@/lib/settings'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/', label: 'Invoices', icon: FileText, end: true },
+  { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/vendors', label: 'Vendors', icon: Building2 },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/monitoring', label: 'Monitoring', icon: Activity },
@@ -17,7 +17,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Logo */}
-      <NavLink to="/" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity">
+      <NavLink to="/dashboard" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
           F
         </div>

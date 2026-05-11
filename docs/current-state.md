@@ -9,6 +9,8 @@
 
 This document is the "what exists today" handoff for future agents and contributors.
 
+Whenever a feature, route, API behavior, schema field, or meaningful UX interaction changes, update this file and `PLAN.md` in the same pass. Documentation is part of the implementation, not follow-up work.
+
 Use `PLAN.md` for:
 
 - original scope
@@ -35,6 +37,8 @@ The app currently supports:
 - per-row actions and bulk export/copy flows
 - settings persistence, including theme and export preferences
 - dashboard analytics derived from invoice data
+- `/dashboard` as the homepage
+- `/invoices` as the main invoice-review workspace
 - vendor-level aggregation in a dedicated `/vendors` page
 - a working invoice review table intended for day-to-day accounting-style use
 
@@ -126,6 +130,17 @@ These behaviors are part of the current baseline and should be preserved unless 
 - PDFs use the browser's native viewer in an iframe.
 - Images open in an image viewer with zoom and rotation controls.
 - This feature exists specifically to help verify extraction output against the source document.
+- The viewer is route-backed at `/invoices/:id/preview`.
+- Closing the viewer or pressing Escape should return the app to `/invoices`.
+- Browser back/forward should open/close this viewer naturally.
+
+### 11. URL-backed invoice overlays
+
+- The invoice review page lives at `/invoices`.
+- Clicking a row opens the detail drawer at `/invoices/:id/details`.
+- Clicking the file pill opens the source-document viewer at `/invoices/:id/preview`.
+- Direct navigation to either URL should open the correct invoice UI once invoice data loads.
+- Closing the drawer/viewer, pressing Escape, or navigating back should return to `/invoices`.
 
 ---
 
@@ -134,6 +149,7 @@ These behaviors are part of the current baseline and should be preserved unless 
 ### Dashboard
 
 - `/dashboard` is implemented.
+- `/dashboard` is the homepage.
 - It is derived entirely from invoice data already loaded for the user.
 - Current widgets include:
   - spend this month vs last month (separate per currency)
@@ -202,6 +218,7 @@ These are not theoretical; the frontend depends on them now.
 - The table supports both single-row workflows and bulk workflows.
 - Dashboard and vendors pages are frontend aggregation views over invoice data.
 - Original-file QA happens in a dedicated modal rather than overloading the detail drawer.
+- Detail and preview overlays are route-driven rather than purely local component state so browser navigation works as expected.
 
 ---
 
@@ -214,5 +231,6 @@ Before changing the invoice table or related API/schema behavior:
 3. Preserve the current table UX unless the user explicitly asks for a behavior change.
 4. Check both light and dark mode for any UI work.
 5. Do not remove `editedFields[]`, inline editing support, bulk-selection behavior, payment tracking, tag support, recurring badges, or the original-file viewer unless the user specifically requests that change.
+6. When you add or materially change behavior, update `PLAN.md` and this file before considering the task finished.
 
 If `PLAN.md` and the current code diverge, treat this file as the implementation-status companion to the plan, then confirm with the user before making a contradictory architectural change.

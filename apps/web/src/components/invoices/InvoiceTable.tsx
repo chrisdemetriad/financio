@@ -22,9 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { InvoiceRowActions } from './InvoiceRowActions'
-import { FileViewerModal } from './FileViewerModal'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
-import type { ApiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /** Delay before opening the detail drawer so a double-click can mean "edit" instead of "open". */
@@ -477,8 +475,8 @@ function BulkActionsBar({ count, totalAmount, currency, onCopyCsv, onCopyJson, o
 interface InvoiceTableProps {
   invoices: Invoice[]
   visibleColumns: string[]
-  api: ApiClient
   onViewDetails: (invoice: Invoice) => void
+  onViewFile: (invoice: Invoice) => void
   onUpdate: (id: string, field: string, value: string | number | null) => Promise<void>
   onDeleteSelected: (ids: string[]) => Promise<void>
   onCopySelected: (invoices: Invoice[], format: 'csv' | 'json') => void
@@ -488,14 +486,13 @@ interface InvoiceTableProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function InvoiceTable({
-  invoices, visibleColumns, api, onViewDetails,
+  invoices, visibleColumns, onViewDetails, onViewFile,
   onUpdate, onDeleteSelected, onCopySelected, onDownloadSelected,
 }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
-  const [viewingFile, setViewingFile] = useState<Invoice | null>(null)
 
   const pendingDrawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelPendingDrawer = useCallback(() => {
@@ -786,7 +783,7 @@ export function InvoiceTable({
                   className="rounded-md bg-slate-100 dark:bg-white/8 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 hover:bg-accent/15 hover:text-accent dark:hover:text-accent transition-colors"
                 />
               }
-              onClick={(e) => { e.stopPropagation(); setViewingFile(row.original) }}
+              onClick={(e) => { e.stopPropagation(); onViewFile(row.original) }}
             >
               {ext || 'file'}
             </TooltipTrigger>
@@ -811,7 +808,7 @@ export function InvoiceTable({
       cell: ({ row }) => <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />,
       enableSorting: false,
     },
-  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, invoices])
+  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, onViewFile, invoices])
 
   const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
@@ -932,14 +929,6 @@ export function InvoiceTable({
         onClear={() => setRowSelection({})}
       />
 
-      {viewingFile && (
-        <FileViewerModal
-          key={viewingFile.id}
-          invoice={viewingFile}
-          api={api}
-          onClose={() => setViewingFile(null)}
-        />
-      )}
     </div>
   )
 }

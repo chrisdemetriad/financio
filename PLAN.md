@@ -6,6 +6,8 @@
 
 > **For any agent picking this up mid-build:**
 > Read this entire file **and** `docs/current-state.md` before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. `docs/current-state.md` is the implementation-status companion document and captures features/UX that landed after the original outline. The design system section defines all visual tokens. The infrastructure section defines the two-cloud split. The environment variables section lists every secret needed and when.
+>
+> **Documentation rule:** whenever a feature, route, API behavior, schema field, or meaningful UX interaction is added or changed, update `PLAN.md` and `docs/current-state.md` in the same pass. Do not treat docs as a later cleanup task.
 
 ---
 
@@ -19,11 +21,12 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to S3/GCS → logo column updates
 3. **Review/correct** → user filters the table, spots overdue invoices, and double-clicks fields to correct vendor / invoice number / dates / total / currency inline
 4. **Bulk actions** → user multi-selects rows, sees running total for the current selection, then copies selected rows as CSV / JSON, downloads Excel, or deletes selected
-5. **Analytics** → `/dashboard` summarizes spend by month/vendor/currency and highlights overdue + outstanding invoices
+5. **Analytics** → `/dashboard` is the homepage and summarizes spend by month/vendor/currency and highlights overdue + outstanding invoices
 6. **Vendor analysis** → `/vendors` aggregates invoices by vendor/domain with totals, counts, average invoice size, and last invoice date
-7. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
-8. **Clear** → confirmation dialog → all invoices deleted for the current user
-9. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
+7. **Invoice review** → `/invoices` is the main workspace; `/invoices/:id/details` opens the detail drawer and `/invoices/:id/preview` opens the original-file viewer
+8. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
+9. **Clear** → confirmation dialog → all invoices deleted for the current user
+10. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
 
 ---
 
@@ -131,6 +134,7 @@ The invoice table is no longer a passive output view. It is the main working sur
 - **Tags**: support multiple tags per invoice, editable from the row detail drawer and filterable from the table.
 - **Recurring detection**: badge likely subscription-like repeats using same vendor + currency and similar totals in the last 90 days.
 - **Original file viewer**: expose a dedicated file-format pill in the table that opens the original PDF/image in a full-screen modal for extraction QA.
+- **Route-backed overlays**: the detail drawer and file viewer are URL-backed. `/invoices/:id/details` opens the drawer, `/invoices/:id/preview` opens the file viewer, and closing either returns the user to `/invoices`. Browser back/forward must behave naturally.
 - **Theme parity**: all new controls in this area must be checked in both light and dark mode before shipping.
 
 ---
@@ -303,7 +307,9 @@ Additional table UX work landed after the original 40-commit outline and should 
 - Payment tracking (`paid` + `paidDate`, plus visible Paid pill in the table)
 - Recurring detection badge
 - Original-file viewer modal opened from a file-format pill in the table
+- URL-backed invoice overlays: `/invoices/:id/details` and `/invoices/:id/preview`
 - `/dashboard` page with spend/overdue/outstanding analytics
+- `/dashboard` promoted to homepage; invoice workspace moved to `/invoices`
 - `/vendors` page with frontend-only aggregation by vendor/domain
 
 See `docs/current-state.md` for the implementation-status summary and table UX rules that future agents should preserve.
