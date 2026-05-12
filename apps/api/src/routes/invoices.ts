@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify'
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { readFile, stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import path from 'node:path'
@@ -34,11 +34,32 @@ async function resolveDbUserId(clerkId: string): Promise<string> {
   return user.id
 }
 
-function resolveLogoUrl(raw: string | null): string | null {
+function getPublicApiBase(request: FastifyRequest): string {
+  const forwardedProto = request.headers['x-forwarded-proto']
+  const forwardedHost = request.headers['x-forwarded-host']
+  const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto
+  const host = Array.isArray(forwardedHost) ? forwardedHost[0] : (forwardedHost ?? request.headers.host)
+
+  if (proto && host) {
+    return `${proto}://${host}`.replace(/\/$/, '')
+  }
+
+  return (process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3001}`).replace(/\/$/, '')
+}
+
+function resolveLogoUrl(raw: string | null, apiBase: string): string | null {
   if (!raw) return null
-  if (raw.startsWith('/'))
-    return `${process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3001}`}${raw}`
-  return raw // legacy full URLs
+
+  if (raw.startsWith('/logos/')) {
+    return `${apiBase}${raw}`
+  }
+
+  const filename = raw.split('/logos/').pop()
+  if (filename && filename !== raw) {
+    return `${apiBase}/logos/${filename}`
+  }
+
+  return raw
 }
 
 function formatInvoice(row: {
@@ -67,7 +88,7 @@ function formatInvoice(row: {
   status: string
   createdAt: Date
   updatedAt: Date
-}): Invoice {
+}, apiBase: string): Invoice {
   return {
     id: row.id,
     userId: row.userId,
@@ -75,7 +96,7 @@ function formatInvoice(row: {
     fileName: row.fileName,
     vendor: row.vendor,
     vendorDomain: row.vendorDomain,
-    logoUrl: resolveLogoUrl(row.logoUrl),
+    logoUrl: resolveLogoUrl(row.logoUrl, apiBase),
     logoBgColor: row.logoBgColor,
     invoiceNumber: row.invoiceNumber,
     invoiceDate: row.invoiceDate?.toISOString().slice(0, 10) ?? null,
@@ -127,16 +148,18 @@ async function persistExtracted(
 export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /invoices — list all invoices for the authenticated user
   fastify.get('/invoices', { preHandler: [requireAuth] }, async (request) => {
+    const apiBase = getPublicApiBase(request)
     const dbUserId = await resolveDbUserId(request.userId!)
     const rows = await db.invoice.findMany({
       where: { userId: dbUserId },
       orderBy: { createdAt: 'desc' },
     })
-    return rows.map(formatInvoice)
+    return rows.map((row) => formatInvoice(row, apiBase))
   })
 
   // POST /invoices/upload — upload + process an invoice
   fastify.post('/invoices/upload', { preHandler: [requireAuth] }, async (request, reply) => {
+    const apiBase = getPublicApiBase(request)
     const data = await request.file({ limits: { fileSize: MAX_FILE_BYTES } })
 
     if (!data) {
@@ -177,7 +200,7 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       if (existing.status !== 'ERROR') {
         return reply.status(409).send({
           duplicate: true,
-          invoice: formatInvoice(existing),
+          invoice: formatInvoice(existing, apiBase),
         })
       }
       // Reset the errored record so the UI shows it as processing again
@@ -222,11 +245,12 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
     })()
 
-    return reply.status(202).send({ duplicate: false, invoice: formatInvoice(invoice) })
+    return reply.status(202).send({ duplicate: false, invoice: formatInvoice(invoice, apiBase) })
   })
 
   // PATCH /invoices/:id — manually correct an extracted field
   fastify.patch('/invoices/:id', { preHandler: [requireAuth] }, async (request, reply) => {
+    const apiBase = getPublicApiBase(request)
     const { id } = request.params as { id: string }
     const dbUserId = await resolveDbUserId(request.userId!)
     const invoice = await db.invoice.findUnique({ where: { id } })
@@ -275,7 +299,7 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const updated = await db.invoice.update({ where: { id }, data: updateData })
-    return formatInvoice(updated)
+    return formatInvoice(updated, apiBase)
   })
 
   // DELETE /invoices — clear all invoices for the authenticated user
@@ -359,6 +383,7 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /invoices/:id/unlock — retry a password-protected PDF with a supplied password
   fastify.post('/invoices/:id/unlock', { preHandler: [requireAuth] }, async (request, reply) => {
+    const apiBase = getPublicApiBase(request)
     const { id } = request.params as { id: string }
     const body = z.object({ password: z.string().min(1) }).safeParse(request.body)
 
@@ -401,6 +426,6 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     })()
 
     const updated = await db.invoice.findUnique({ where: { id } })
-    return reply.status(202).send(formatInvoice(updated!))
+    return reply.status(202).send(formatInvoice(updated!, apiBase))
   })
 }
