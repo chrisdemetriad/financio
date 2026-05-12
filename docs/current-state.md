@@ -52,6 +52,7 @@ The invoice table is the primary working surface, not just a passive output list
 - AWS deploys now target ECS Express Mode in `eu-west-2`.
 - AWS App Runner is no longer the intended deploy target for this repo because AWS closed App Runner to new customers.
 - On AWS, Terraform now owns the supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters) while the GitHub Actions deploy workflow creates or updates the ECS Express service from the pushed container image.
+- Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev, AWS frontend hosting, and later GCP frontend hosting can coexist without another API refactor.
 - The monitoring page should treat AWS as an ECS task-count source, not an App Runner instance-count source.
 
 ---

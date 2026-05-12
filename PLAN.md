@@ -198,6 +198,7 @@ Both clouds run **comparable managed container services**, but they are no longe
 - **ECR** — container image registry
 - **CloudFront + S3** — static frontend hosting
 - **CloudWatch / ECS APIs** — metrics and task counts for the `/monitoring` page
+- **CORS configuration** — backend should support multiple allowed frontend origins so local dev, AWS-hosted frontend, and later GCP-hosted frontend can all be authorized cleanly
 
 ### GCP (Pulumi — TypeScript)
 - **Cloud Run** — hosts Fastify API, scales to zero

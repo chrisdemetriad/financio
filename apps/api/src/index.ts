@@ -9,6 +9,14 @@ import { settingsRoutes } from './routes/settings.js'
 import { metricsRoutes } from './routes/metrics.js'
 import { proxyLogo } from './lib/logoStorage.js'
 
+function getAllowedOrigins() {
+  const configured = [process.env.CORS_ORIGIN, ...(process.env.CORS_ORIGINS?.split(',') ?? [])]
+    .map((origin) => origin?.trim())
+    .filter((origin): origin is string => Boolean(origin))
+
+  return new Set(configured.length > 0 ? configured : ['http://localhost:5173'])
+}
+
 const logger =
   process.env.NODE_ENV === 'production'
     ? true
@@ -23,8 +31,17 @@ const server = Fastify({
   logger,
 })
 
+const allowedOrigins = getAllowedOrigins()
+
 await server.register(cors, {
-  origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true)
+      return
+    }
+
+    callback(null, allowedOrigins.has(origin))
+  },
   credentials: true,
 })
 
