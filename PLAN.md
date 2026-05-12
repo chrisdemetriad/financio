@@ -196,7 +196,7 @@ Both clouds run **comparable managed container services**, but they are no longe
 - **RDS PostgreSQL** — managed Postgres, Multi-AZ optional
 - **S3 Bucket** — invoice files + vendor logos (private, signed URLs)
 - **ECR** — container image registry
-- **CloudFront + S3** — static frontend hosting
+- **CloudFront + S3** — static frontend hosting from a dedicated frontend bucket fronted by CloudFront with SPA-friendly fallback routing
 - **CloudWatch / ECS APIs** — metrics and task counts for the `/monitoring` page
 - **CORS configuration** — backend should support multiple allowed frontend origins so local dev, AWS-hosted frontend, and later GCP-hosted frontend can all be authorized cleanly
 

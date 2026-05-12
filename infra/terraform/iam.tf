@@ -160,6 +160,34 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       },
       {
         Effect = "Allow"
+        Action = ["s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.frontend.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:GetObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.frontend.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetDistribution",
+          "cloudfront:GetDistributionConfig",
+          "cloudfront:ListDistributions"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
         Action = [
           "ecs:CreateCluster",
           "ecs:RegisterTaskDefinition",
