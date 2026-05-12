@@ -211,6 +211,7 @@ Both clouds run **comparable managed container services**, but they are no longe
 ### CI/CD (GitHub Actions)
 - `test.yml` — install, lint, Vitest unit tests, Playwright e2e
 - `deploy-aws.yml` — build Docker image → ECR → create/update ECS Express Mode service (OIDC or access keys)
+- `deploy-aws-frontend.yml` — build `apps/web` → upload to S3 frontend bucket → invalidate CloudFront
 - `deploy-gcp.yml` — build image → Artifact Registry → deploy to Cloud Run (Workload Identity Federation)
 
 ---

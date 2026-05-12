@@ -53,6 +53,7 @@ The invoice table is the primary working surface, not just a passive output list
 - AWS App Runner is no longer the intended deploy target for this repo because AWS closed App Runner to new customers.
 - On AWS, Terraform now owns the supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters) while the GitHub Actions deploy workflow creates or updates the ECS Express service from the pushed container image.
 - AWS Terraform also defines a dedicated private frontend bucket plus a CloudFront distribution so the React app can be hosted in AWS separately from the API runtime.
+- The AWS frontend deploy workflow is separate from the AWS API deploy workflow. It builds `apps/web`, resolves the live ECS API URL, syncs the built files to the frontend bucket, and invalidates CloudFront.
 - Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev, AWS frontend hosting, and later GCP frontend hosting can coexist without another API refactor.
 - The monitoring page should treat AWS as an ECS task-count source, not an App Runner instance-count source.
 
