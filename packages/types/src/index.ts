@@ -2,7 +2,7 @@
 
 export type ExportFormat = 'csv' | 'json' | 'tsv' | 'markdown'
 
-export type StorageCloud = 'aws' | 'gcp'
+export type StorageCloud = 'aws' | 'local'
 
 export type InvoiceStatus = 'processing' | 'complete' | 'error' | 'awaiting_password'
 
@@ -70,10 +70,6 @@ export interface UploadResponse {
 
 export interface MetricsResponse {
   aws: {
-    instanceCount: number | null
-    serviceName: string
-  }
-  gcp: {
     instanceCount: number | null
     serviceName: string
   }

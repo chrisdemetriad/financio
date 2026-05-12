@@ -44,10 +44,3 @@ scripts/load-test-result.json
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-
-# pulumi
-.pulumi/
-Pulumi.*.yaml
-!Pulumi.*.yaml.example
-infra/pulumi/node_modules
-infra/pulumi/bin

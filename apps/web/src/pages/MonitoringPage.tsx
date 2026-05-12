@@ -80,7 +80,6 @@ function InstanceGrid({ count, maxCount, color }: { count: number; maxCount: num
 // ── Cloud card ────────────────────────────────────────────────────────────
 
 interface CloudCardProps {
-  cloud: 'AWS' | 'GCP'
   color: string
   serviceName: string
   instanceCount: number | null
@@ -88,7 +87,7 @@ interface CloudCardProps {
   isSimulated: boolean
 }
 
-function CloudCard({ cloud, color, serviceName, instanceCount, history, isSimulated }: CloudCardProps) {
+function CloudCard({ color, serviceName, instanceCount, history, isSimulated }: CloudCardProps) {
   const count = instanceCount ?? 0
   const prev = history[history.length - 2] ?? count
   const delta = count - prev
@@ -100,7 +99,7 @@ function CloudCard({ cloud, color, serviceName, instanceCount, history, isSimula
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{cloud}</span>
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">AWS</span>
             {isSimulated && (
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">
                 simulated
@@ -160,11 +159,9 @@ export function MonitoringPage() {
   const [error, setError] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [awsHistory, setAwsHistory] = useState<number[]>([])
-  const [gcpHistory, setGcpHistory] = useState<number[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const isSimulated =
-    data?.aws.serviceName.includes('simulated') || data?.gcp.serviceName.includes('simulated') || false
+  const isSimulated = data?.aws.serviceName.includes('simulated') ?? false
 
   const poll = useCallback(async () => {
     try {
@@ -173,7 +170,6 @@ export function MonitoringPage() {
       setLastUpdate(new Date())
       setError(false)
       setAwsHistory((h) => [...h.slice(-(HISTORY_SIZE - 1)), metrics.aws.instanceCount ?? 0])
-      setGcpHistory((h) => [...h.slice(-(HISTORY_SIZE - 1)), metrics.gcp.instanceCount ?? 0])
     } catch {
       setError(true)
     }
@@ -185,7 +181,7 @@ export function MonitoringPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [poll])
 
-  const totalInstances = (data?.aws.instanceCount ?? 0) + (data?.gcp.instanceCount ?? 0)
+  const totalInstances = data?.aws.instanceCount ?? 0
 
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
@@ -194,7 +190,7 @@ export function MonitoringPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Monitoring</h1>
           <p className="mt-0.5 text-sm text-slate-400">
-            Live instance counts across AWS and GCP — polls every {POLL_MS / 1000}s.
+            Live ECS task count — polls every {POLL_MS / 1000}s.
             {isSimulated && ' Running locally in simulation mode.'}
           </p>
         </div>
@@ -218,22 +214,13 @@ export function MonitoringPage() {
         </div>
       </div>
 
-      {/* Cloud cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* ECS card */}
+      <div className="max-w-md">
         <CloudCard
-          cloud="AWS"
           color="#FF9900"
           serviceName={data?.aws.serviceName ?? 'ECS Express Mode'}
           instanceCount={data?.aws.instanceCount ?? null}
           history={awsHistory}
-          isSimulated={isSimulated}
-        />
-        <CloudCard
-          cloud="GCP"
-          color="#4285F4"
-          serviceName={data?.gcp.serviceName ?? 'Cloud Run'}
-          instanceCount={data?.gcp.instanceCount ?? null}
-          history={gcpHistory}
           isSimulated={isSimulated}
         />
       </div>
@@ -254,11 +241,11 @@ export function MonitoringPage() {
                 brew install k6
               </code>
               <code className="block rounded-md bg-slate-100 dark:bg-white/4 px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">
-                k6 run scripts/load-test.js -e API_URL=https://YOUR_AWS_OR_GCP_API_URL
+                k6 run scripts/load-test.js -e API_URL=https://YOUR_AWS_API_URL
               </code>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Keep this page open — instance cards will animate as ECS Express Mode and Cloud Run add capacity.
+              Keep this page open — the card animates as ECS Express Mode adds capacity.
             </p>
           </div>
         </div>

@@ -47,7 +47,7 @@ await server.register(cors, {
 
 await server.register(multipart)
 
-// Serve logos from whichever backend is configured (local disk / S3 / GCS)
+// Serve logos from whichever backend is configured (local disk / S3)
 server.get('/logos/:filename', async (request, reply) => {
   const { filename } = request.params as { filename: string }
   try {

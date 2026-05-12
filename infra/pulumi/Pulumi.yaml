@@ -1,9 +1,0 @@
-name: financio-gcp
-runtime:
-  name: nodejs
-  options:
-    typescript: true
-description: Financio GCP infrastructure — Cloud Run, Cloud SQL, GCS, Artifact Registry
-config:
-  gcp:project: financio-495909
-  gcp:region: europe-west1

@@ -3,8 +3,8 @@
  *
  * Ramps from 0 → 50 virtual users over 30s, holds for 60s, then ramps down.
  * Each VU posts a real minimal PDF to POST /invoices/upload and checks the
- * 202 response. Keep the /monitoring page open to watch ECS Express Mode /
- * Cloud Run add instances in real time.
+ * 202 response. Keep the /monitoring page open to watch ECS Express Mode scale
+ * in real time.
  *
  * Prerequisites:
  *   brew install k6        # macOS
@@ -89,7 +89,7 @@ function hexToBytes(hex) {
 // A set of different fake invoice filenames to avoid duplicate rejection
 const INVOICE_NAMES = [
   'aws-invoice-jan-2026.pdf',
-  'gcp-invoice-feb-2026.pdf',
+  'sample-invoice-feb-2026.pdf',
   'stripe-invoice-mar-2026.pdf',
   'openai-invoice-apr-2026.pdf',
   'github-invoice-may-2026.pdf',

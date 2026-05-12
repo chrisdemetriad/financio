@@ -48,14 +48,12 @@ The invoice table is the primary working surface, not just a passive output list
 
 ## Deployment Baseline
 
-- GCP deploys target Cloud Run in `europe-west1`.
-- AWS deploys now target ECS Express Mode in `eu-west-2`.
-- AWS App Runner is no longer the intended deploy target for this repo because AWS closed App Runner to new customers.
-- On AWS, Terraform now owns the supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters) while the GitHub Actions deploy workflow creates or updates the ECS Express service from the pushed container image.
-- AWS Terraform also defines a dedicated private frontend bucket plus a CloudFront distribution so the React app can be hosted in AWS separately from the API runtime.
-- The AWS frontend deploy workflow is separate from the AWS API deploy workflow. It builds `apps/web`, resolves the live ECS API URL, syncs the built files to the frontend bucket, and invalidates CloudFront.
-- Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev, AWS frontend hosting, and later GCP frontend hosting can coexist without another API refactor.
-- The monitoring page should treat AWS as an ECS task-count source, not an App Runner instance-count source.
+- Production infrastructure is **AWS only**, managed with **Terraform** under `infra/terraform/`.
+- The API runs on **ECS Express Mode** in `eu-west-2` (App Runner is not used because AWS closed it to new customers).
+- Terraform provisions supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters, frontend S3 bucket, CloudFront) while the GitHub Actions `deploy-aws.yml` workflow builds the API image, pushes to ECR, and creates or updates the ECS Express service.
+- The **frontend** is deployed separately via `deploy-aws-frontend.yml`: it builds `apps/web`, resolves the live ECS API URL for `VITE_API_URL`, syncs static assets to the frontend bucket, and invalidates CloudFront.
+- Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev and the CloudFront URL (and any alternate AWS-hosted origins) can be authorized without another API change.
+- The monitoring page reads **ECS running task counts** via `GET /metrics` (not App Runner).
 
 ---
 

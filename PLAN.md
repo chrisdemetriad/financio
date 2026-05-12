@@ -1,11 +1,11 @@
 # Financio — Build Plan & Architecture
 
-> Invoice extraction and management tool with multi-agent AI pipeline, dual-cloud infrastructure, and real-time monitoring.
+> Invoice extraction and management tool with multi-agent AI pipeline, AWS (Terraform) infrastructure, and real-time monitoring.
 
 ---
 
 > **For any agent picking this up mid-build:**
-> Read this entire file **and** `docs/current-state.md` before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. `docs/current-state.md` is the implementation-status companion document and captures features/UX that landed after the original outline. The design system section defines all visual tokens. The infrastructure section defines the two-cloud split. The environment variables section lists every secret needed and when.
+> Read this entire file **and** `docs/current-state.md` before writing a single line of code. The "Key Decisions & Rationale" section explains *why* choices were made — do not substitute alternatives without reading it. The 40-commit plan is the source of truth for build order. `docs/current-state.md` is the implementation-status companion document and captures features/UX that landed after the original outline. The design system section defines all visual tokens. The infrastructure section describes the AWS + Terraform layout. The environment variables section lists every secret needed and when.
 >
 > **Documentation rule:** whenever a feature, route, API behavior, schema field, or meaningful UX interaction is added or changed, update `PLAN.md` and `docs/current-state.md` in the same pass. Do not treat docs as a later cleanup task.
 
@@ -18,7 +18,7 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 ### Core user flows
 
 1. **Drop invoice** → file hashed (duplicate check) → extraction agent → validator agent → row appears in table
-2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to S3/GCS → logo column updates
+2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to local disk or S3 → logo column updates
 3. **Review/correct** → user filters the table, spots overdue invoices, and double-clicks fields to correct vendor / invoice number / dates / total / currency inline
 4. **Bulk actions** → user multi-selects rows, sees running total for the current selection, then copies selected rows as CSV / JSON, downloads Excel, or deletes selected
 5. **Analytics** → `/dashboard` is the homepage and summarizes spend by month/vendor/currency and highlights overdue + outstanding invoices
@@ -26,7 +26,7 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 7. **Invoice review** → `/invoices` is the main workspace; `/invoices/:id/details` opens the detail drawer and `/invoices/:id/preview` opens the original-file viewer
 8. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
 9. **Clear** → confirmation dialog → all invoices deleted for the current user
-10. **Monitoring** → `/monitoring` page shows live instance counts on AWS and GCP; run k6 to watch horizontal scaling in real time
+10. **Monitoring** → `/monitoring` page shows live ECS task counts on AWS; run k6 to watch horizontal scaling in real time
 
 ---
 
@@ -40,8 +40,8 @@ These decisions were made explicitly during planning. A future agent should **no
 | No LangChain / Vercel AI SDK | Plain `openai` npm package | 2–3 agents = ~50 lines of async functions. No framework needed. Vercel AI SDK is unrelated to Vercel hosting but adds abstraction we'd fight. Plain SDK gives full control. |
 | REST not tRPC | REST | Simpler mental model, no codegen step, easier to test with curl/Postman, decoupled frontend and backend. |
 | Clerk deferred | Auth added at commit 5–6 | App is internal/personal. `user_id` column is **nullable** in schema from day one — do not remove it. Wire Clerk up at commits 5–6 as planned, make non-nullable then. |
-| Managed container target | ECS Express Mode (AWS) + Cloud Run (GCP) | AWS closed App Runner to new customers, so AWS now uses ECS Express Mode as the closest managed replacement. Cloud Run remains the true scale-to-zero path on GCP. |
-| Dual cloud purpose | AWS + GCP both active | Deliberate learning split: Terraform on AWS, Pulumi (TypeScript SDK) on GCP. Logo storage actively uses **both** S3 and GCS as a concrete cross-cloud exercise. |
+| Managed container target | ECS Express Mode (AWS) | AWS closed App Runner to new customers, so the API runs on ECS Express Mode. Infrastructure is AWS-only; Terraform under `infra/terraform/` is the sole in-repo IaC. |
+| Logo / file storage | S3 (prod) or local disk (dev) | `STORAGE_CLOUD=aws` with AWS credentials uses S3; otherwise logos are stored on the API filesystem for local development. |
 | Horizontal scaling only | More instances, not bigger ones | Containers scale horizontally. `/monitoring` shows instance *count* going up/down during k6 load tests — that is the intended scaling demo. |
 | Dark mode default | Tailwind dark class strategy | Toggle in `/settings`, persisted to `localStorage`. Dark is the default. |
 | PDF export library | `@react-pdf/renderer` not jsPDF | Defined as React components with styles — matches the app's visual language. jsPDF produces raw text. |
@@ -67,15 +67,14 @@ These decisions were made explicitly during planning. A future agent should **no
 | Backend | Fastify + TypeScript | Fast, lightweight, TypeScript-native |
 | API style | REST | Simple, no codegen step |
 | ORM | Prisma | Schema-as-code, migrations, type-safe queries |
-| Database | PostgreSQL | Available on both AWS (RDS) and GCP (Cloud SQL) |
+| Database | PostgreSQL | AWS RDS in production; local Postgres for development and CI |
 | AI agents | OpenAI SDK (plain) | GPT-4o mini, structured outputs, no framework needed |
 | Logo fetching | Brandfetch API | Free tier, clean API, returns logo by domain |
 | Export | xlsx (SheetJS) + @react-pdf/renderer | XLSX and styled PDF exports |
 | Auth | Clerk | Magic-link + OAuth, ~30 min integration, deferred |
 | Monorepo | pnpm workspaces + Turborepo | Independent `apps/web` and `apps/api` |
-| IaC (AWS) | Terraform | Manages RDS, S3, ECR, ECS Express IAM/runtime config |
-| IaC (GCP) | Pulumi (TypeScript SDK) | Manages Cloud SQL, GCS, Cloud Run, Artifact Registry |
-| CI/CD | GitHub Actions + OIDC | No long-lived cloud credentials in secrets |
+| IaC | Terraform (AWS) | Manages RDS, S3, ECR, IAM, SSM parameters, frontend S3 + CloudFront, and supporting wiring for ECS Express |
+| CI/CD | GitHub Actions + OIDC (AWS) | API image push and ECS updates (`deploy-aws.yml`); static web deploy (`deploy-aws-frontend.yml`); no long-lived AWS keys when OIDC is configured |
 | Testing | Playwright (e2e) + Vitest (unit) + k6 (load) | Full testing story |
 
 ---
@@ -93,13 +92,12 @@ financio/
 │   ├── types/             # Shared TypeScript types (invoices, API responses)
 │   └── exports/           # Shared export utilities (CSV, XLSX, PDF)
 ├── infra/
-│   ├── terraform/         # AWS infrastructure
-│   └── pulumi/            # GCP infrastructure
+│   └── terraform/         # AWS infrastructure (RDS, S3, ECR, CloudFront, IAM, …)
 ├── scripts/
 │   └── load-test.js       # k6 load test script
 ├── .github/
 │   └── workflows/         # CI and CD pipelines
-├── Makefile               # infra-up-aws, infra-down-aws, infra-up-gcp, load-test, etc.
+├── Makefile               # infra-up-aws, infra-down-aws, docker-push-aws, db-migrate, etc.
 └── PLAN.md                # this file
 ```
 
@@ -166,7 +164,7 @@ File upload
            API: Brandfetch
            Input: vendor domain name
            Output: logo URL
-           Storage: S3 (AWS) or GCS (GCP)
+           Storage: S3 when `STORAGE_CLOUD=aws`, else local `uploads/` directory
            Updates invoice row with logo URL
 ```
 
@@ -189,30 +187,21 @@ File hash enables duplicate detection on upload.
 
 ## Infrastructure
 
-Both clouds run **comparable managed container services**, but they are no longer identical. The original AWS App Runner plan was replaced with ECS Express Mode because AWS closed App Runner to new customers. The primary goal is still to practice both Terraform (AWS) and Pulumi (GCP) and have live infrastructure for the monitoring/scaling demo.
+The API runs on **ECS Express Mode** in AWS (`eu-west-2` by default). App Runner was the original sketch but AWS closed it to new customers, so Terraform and deploy automation target ECS instead. **Terraform** under `infra/terraform/` is the only infrastructure-as-code in this repository.
 
-### AWS (Terraform + ECS Express workflow)
-- **ECS Express Mode** — hosts the Fastify API using an ECS-managed ALB/Fargate stack. This replaced App Runner after AWS closed App Runner to new customers.
+### AWS (Terraform + GitHub Actions)
+- **ECS Express Mode** — hosts the Fastify API using an ECS-managed ALB/Fargate stack.
 - **RDS PostgreSQL** — managed Postgres, Multi-AZ optional
-- **S3 Bucket** — invoice files + vendor logos (private, signed URLs)
+- **S3 Bucket** — invoice files + vendor logos (private; API serves files where appropriate)
 - **ECR** — container image registry
-- **CloudFront + S3** — static frontend hosting from a dedicated frontend bucket fronted by CloudFront with SPA-friendly fallback routing
-- **CloudWatch / ECS APIs** — metrics and task counts for the `/monitoring` page
-- **CORS configuration** — backend should support multiple allowed frontend origins so local dev, AWS-hosted frontend, and later GCP-hosted frontend can all be authorized cleanly
-
-### GCP (Pulumi — TypeScript)
-- **Cloud Run** — hosts Fastify API, scales to zero
-- **Cloud SQL PostgreSQL** — managed Postgres
-- **GCS Bucket** — invoice files + vendor logos
-- **Artifact Registry** — container image registry
-- **Cloud CDN + GCS** — static frontend hosting
-- **Cloud Monitoring** — metrics for the `/monitoring` page
+- **CloudFront + S3** — static frontend hosting from a dedicated frontend bucket with SPA-friendly fallback routing
+- **CloudWatch / ECS APIs** — task counts for the `/monitoring` page (`GET /metrics`)
+- **CORS configuration** — backend supports `CORS_ORIGIN` or comma-separated `CORS_ORIGINS` so local dev and the CloudFront (or other AWS-hosted) frontends stay authorized without refactors
 
 ### CI/CD (GitHub Actions)
 - `test.yml` — install, lint, Vitest unit tests, Playwright e2e
 - `deploy-aws.yml` — build Docker image → ECR → create/update ECS Express Mode service (OIDC or access keys)
-- `deploy-aws-frontend.yml` — build `apps/web` → upload to S3 frontend bucket → invalidate CloudFront
-- `deploy-gcp.yml` — build image → Artifact Registry → deploy to Cloud Run (Workload Identity Federation)
+- `deploy-aws-frontend.yml` — build `apps/web` with the live API URL → upload to S3 frontend bucket → invalidate CloudFront
 
 ---
 
@@ -224,12 +213,10 @@ Both clouds run **comparable managed container services**, but they are no longe
 | `CLERK_PUBLISHABLE_KEY` | [dashboard.clerk.com](https://dashboard.clerk.com) | Commit 5 (auth) |
 | `CLERK_SECRET_KEY` | [dashboard.clerk.com](https://dashboard.clerk.com) | Commit 6 (JWT verify) |
 | `BRANDFETCH_API_KEY` | [brandfetch.com/api](https://brandfetch.com/api) | Commit 21 (logo agent) |
-| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | IAM Console | Commit 32 (Terraform) |
-| `AWS_ACCOUNT_ID` | AWS Console | Commit 32 |
-| GCP service account JSON | GCP Console → IAM | Commit 33 (Pulumi) |
-| `GCP_PROJECT_ID` | GCP Console | Commit 33 |
+| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | IAM Console | Terraform / local S3 (when not using instance roles) |
+| `AWS_ACCOUNT_ID` | AWS Console | Terraform and OIDC role wiring |
 
-GitHub Actions uses OIDC (AWS) and Workload Identity Federation (GCP) — no long-lived credentials stored in secrets.
+GitHub Actions uses **OIDC to AWS** for deploy workflows when configured — prefer that over long-lived access keys in secrets.
 
 ---
 
@@ -281,7 +268,7 @@ GitHub Actions uses OIDC (AWS) and Workload Identity Federation (GCP) — no lon
 |---|---|---|
 | 21 | `feat: brandfetch integration` | Logo agent function, fetch by vendor domain, graceful 404/rate-limit handling |
 | 22 | `feat: s3 logo storage` | Upload logo PNG to S3, store public URL in invoice row |
-| 23 | `feat: gcs logo storage` | Mirror to GCS bucket, cloud determined by `STORAGE_CLOUD` env var |
+| 23 | `feat: optional s3 logo path` | Production logos on S3 via `STORAGE_CLOUD=aws`; local dev uses filesystem |
 | 24 | `feat: logo column` | Logo column in table, img with fallback initials avatar while loading |
 
 ### Phase 6 — Quick Wins (commits 25–32)
@@ -320,18 +307,18 @@ See `docs/current-state.md` for the implementation-status summary and table UX r
 
 | # | Commit | Description |
 |---|---|---|
-| 33 | `feat: terraform aws` | RDS Postgres, S3, ECR, ECS Express IAM/runtime config, `terraform.tfvars.example` |
-| 34 | `feat: pulumi gcp` | Cloud Run, Cloud SQL, GCS, Artifact Registry, service accounts |
-| 35 | `feat: makefile` | `make infra-up-aws`, `make infra-down-aws`, `make infra-up-gcp`, `make infra-down-gcp` |
+| 33 | `feat: terraform aws` | RDS Postgres, S3, ECR, ECS Express IAM/runtime config, CloudFront + frontend bucket, `terraform.tfvars.example` |
+| 34 | `feat: aws frontend deploy` | GitHub Action builds Vite app and syncs to S3 + CloudFront invalidation |
+| 35 | `feat: makefile` | `make infra-up-aws`, `make infra-down-aws`, `docker-push-aws` |
 | 36 | `feat: github actions ci` | `test.yml` — lint, Vitest, Playwright |
-| 37 | `feat: github actions cd` | `deploy-aws.yml` + `deploy-gcp.yml` via OIDC / Workload Identity |
+| 37 | `feat: github actions cd` | `deploy-aws.yml` + `deploy-aws-frontend.yml` (OIDC to AWS) |
 
 ### Phase 8 — Monitoring & Load Testing (commits 38–40)
 
 | # | Commit | Description |
 |---|---|---|
-| 38 | `feat: metrics endpoint` | `GET /metrics` — polls ECS task counts on AWS + Cloud Run `container/instance_count` |
-| 39 | `feat: monitoring page` | `/monitoring` route, polls every 4s, live instance count cards per cloud, animated add/remove |
+| 38 | `feat: metrics endpoint` | `GET /metrics` — ECS service running task count |
+| 39 | `feat: monitoring page` | `/monitoring` route, polls every 4s, live ECS count + sparkline |
 | 40 | `feat: k6 load test` | `scripts/load-test.js`, ramps 0→50 VUs over 30s, targets upload endpoint, README instructions |
 
 ---
@@ -375,8 +362,8 @@ pnpm test
 # Run Playwright e2e
 pnpm --filter web test:e2e
 
-# Run k6 load test (requires infra running)
-make load-test
+# Run k6 load test (requires a reachable API; install k6 first)
+k6 run scripts/load-test.js
 ```
 
 ---
@@ -389,10 +376,9 @@ DATABASE_URL=postgresql://...
 OPENAI_API_KEY=sk-...
 CLERK_SECRET_KEY=sk_...
 BRANDFETCH_API_KEY=...
-STORAGE_CLOUD=aws          # or "gcp"
-AWS_REGION=eu-west-1
+STORAGE_CLOUD=aws          # or "local" for dev filesystem
+AWS_REGION=eu-west-2
 AWS_S3_BUCKET=financio-assets
-GCS_BUCKET=financio-assets
 ```
 
 ### `apps/web/.env`

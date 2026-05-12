@@ -3,7 +3,7 @@
  *
  * All backends now return a RELATIVE path  (/logos/domain.ext).
  * The API serves GET /logos/:filename which proxies from the configured backend.
- * This keeps the S3/GCS bucket private while still serving logos to the frontend.
+ * This keeps the S3 bucket private while still serving logos to the frontend.
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
@@ -25,8 +25,6 @@ export async function storeLogo(domain: string, buffer: Buffer, ext: string): Pr
 
   if (cloud === 'aws' && process.env.AWS_ACCESS_KEY_ID) {
     await storeS3(filename, buffer, ext)
-  } else if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    await storeGCS(filename, buffer, ext)
   } else {
     await storeLocal(filename, buffer)
   }
@@ -45,10 +43,6 @@ export async function deleteLogo(relativePath: string): Promise<void> {
       const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
       const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-2' })
       await client.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets', Key: `logos/${filename}` }))
-    } else if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      const { Storage } = await import('@google-cloud/storage')
-      const storage = new Storage()
-      await storage.bucket(process.env.GCS_BUCKET ?? 'financio-assets').file(`logos/${filename}`).delete()
     } else {
       const { unlink } = await import('node:fs/promises')
       await unlink(path.join(LOGOS_DIR, filename))
@@ -73,17 +67,8 @@ export async function proxyLogo(filename: string, reply: FastifyReply): Promise<
       Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets',
       Key: `logos/${filename}`,
     }))
-    // SDK v3 Body is a SdkStreamMixin — must transform before sending
     const bytes = await obj.Body!.transformToByteArray()
     buf = Buffer.from(bytes)
-  } else if (cloud === 'gcp' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    const { Storage } = await import('@google-cloud/storage')
-    const storage = new Storage()
-    const [gcsBuf] = await storage
-      .bucket(process.env.GCS_BUCKET ?? 'financio-assets')
-      .file(`logos/${filename}`)
-      .download()
-    buf = gcsBuf
   } else {
     buf = await readFile(path.join(LOGOS_DIR, filename))
   }
@@ -102,7 +87,7 @@ async function storeLocal(filename: string, buffer: Buffer): Promise<void> {
 
 async function storeS3(filename: string, buffer: Buffer, ext: string): Promise<void> {
   const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
-  const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-1' })
+  const client = new S3Client({ region: process.env.AWS_REGION ?? 'eu-west-2' })
   const contentType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`
   await client.send(new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET ?? 'financio-assets',
@@ -111,13 +96,4 @@ async function storeS3(filename: string, buffer: Buffer, ext: string): Promise<v
     ContentType: contentType,
     CacheControl: 'public, max-age=31536000, immutable',
   }))
-}
-
-async function storeGCS(filename: string, buffer: Buffer, ext: string): Promise<void> {
-  const { Storage } = await import('@google-cloud/storage')
-  const storage = new Storage()
-  const contentType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`
-  await storage.bucket(process.env.GCS_BUCKET ?? 'financio-assets')
-    .file(`logos/${filename}`)
-    .save(buffer, { metadata: { contentType, cacheControl: 'public, max-age=31536000' } })
 }
