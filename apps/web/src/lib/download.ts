@@ -36,7 +36,7 @@ export function downloadMarkdown(invoices: Invoice[]) {
 
 export function downloadXlsx(invoices: Invoice[]) {
   const rows = invoices.map((inv) => ({
-    Vendor: inv.vendor ?? '',
+    Supplier: inv.vendor ?? '',
     'Invoice #': inv.invoiceNumber ?? '',
     Date: inv.invoiceDate ?? '',
     'Due date': inv.dueDate ?? '',
@@ -65,7 +65,7 @@ export async function downloadPdf(invoices: Invoice[]) {
 
   autoTable(doc, {
     startY: 28,
-    head: [['Vendor', 'Invoice #', 'Date', 'Due', 'Total', 'Currency', 'Status']],
+    head: [['Supplier', 'Invoice #', 'Date', 'Due', 'Total', 'Currency', 'Status']],
     body: invoices.map((inv) => [
       inv.vendor ?? '—',
       inv.invoiceNumber ?? '—',

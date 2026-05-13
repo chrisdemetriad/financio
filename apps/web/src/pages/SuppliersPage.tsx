@@ -20,9 +20,10 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-interface VendorRow {
+interface SupplierRow {
   key: string
-  vendor: string
+  /** Display name from invoice.vendor */
+  name: string
   domain: string | null
   logoUrl: string | null
   logoBgColor: string | null
@@ -34,14 +35,14 @@ interface VendorRow {
   primaryCurrency: string | null
 }
 
-function buildVendorRows(invoices: Invoice[]): VendorRow[] {
+function buildSupplierRows(invoices: Invoice[]): SupplierRow[] {
   const map = new Map<string, {
-    vendor: string; domain: string | null; logoUrl: string | null; logoBgColor: string | null
+    name: string; domain: string | null; logoUrl: string | null; logoBgColor: string | null
     invoices: Invoice[]
   }>()
 
   for (const inv of invoices) {
-    // Group key: domain if available, otherwise lowercased vendor name
+    // Group key: domain if available, otherwise lowercased supplier name
     const key = inv.vendorDomain?.toLowerCase() ?? inv.vendor?.toLowerCase() ?? 'unknown'
     const existing = map.get(key)
     if (existing) {
@@ -53,7 +54,7 @@ function buildVendorRows(invoices: Invoice[]): VendorRow[] {
       }
     } else {
       map.set(key, {
-        vendor: inv.vendor ?? 'Unknown',
+        name: inv.vendor ?? 'Unknown',
         domain: inv.vendorDomain,
         logoUrl: inv.logoUrl,
         logoBgColor: inv.logoBgColor,
@@ -86,7 +87,7 @@ function buildVendorRows(invoices: Invoice[]): VendorRow[] {
 
     return {
       key,
-      vendor: g.vendor,
+      name: g.name,
       domain: g.domain,
       logoUrl: g.logoUrl,
       logoBgColor: g.logoBgColor,
@@ -101,17 +102,17 @@ function buildVendorRows(invoices: Invoice[]): VendorRow[] {
 
 // ─── initials avatar ──────────────────────────────────────────────────────────
 
-function VendorAvatar({ vendor, logoUrl, logoBgColor }: {
-  vendor: string; logoUrl: string | null; logoBgColor: string | null
+function SupplierAvatar({ name, logoUrl, logoBgColor }: {
+  name: string; logoUrl: string | null; logoBgColor: string | null
 }) {
-  const initials = vendor.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
   if (logoUrl) {
     return (
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: logoBgColor ?? '#1c1e26' }}
       >
-        <img src={logoUrl} alt={vendor} className="h-6 w-6 object-contain" />
+        <img src={logoUrl} alt={name} className="h-6 w-6 object-contain" />
       </div>
     )
   }
@@ -124,13 +125,13 @@ function VendorAvatar({ vendor, logoUrl, logoBgColor }: {
 
 // ─── sort ─────────────────────────────────────────────────────────────────────
 
-type SortKey = 'vendor' | 'invoiceCount' | 'total' | 'lastInvoiceDate' | 'avg'
+type SortKey = 'name' | 'invoiceCount' | 'total' | 'lastInvoiceDate' | 'avg'
 type SortDir = 'asc' | 'desc'
 
-function sortRows(rows: VendorRow[], key: SortKey, dir: SortDir): VendorRow[] {
+function sortRows(rows: SupplierRow[], key: SortKey, dir: SortDir): SupplierRow[] {
   return [...rows].sort((a, b) => {
     let cmp = 0
-    if (key === 'vendor') cmp = a.vendor.localeCompare(b.vendor)
+    if (key === 'name') cmp = a.name.localeCompare(b.name)
     else if (key === 'invoiceCount') cmp = a.invoiceCount - b.invoiceCount
     else if (key === 'total') {
       const ta = Object.values(a.totals).reduce((s, v) => s + v, 0)
@@ -170,18 +171,18 @@ function Th({ label, sortBy, sortKey, sortDir, onToggle, className }: {
   )
 }
 
-export function VendorsPage() {
+export function SuppliersPage() {
   const { invoices, loading } = useInvoices()
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('total')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
-  const allRows = useMemo(() => buildVendorRows(invoices), [invoices])
+  const allRows = useMemo(() => buildSupplierRows(invoices), [invoices])
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
     const filtered = q
-      ? allRows.filter((r) => r.vendor.toLowerCase().includes(q) || r.domain?.toLowerCase().includes(q))
+      ? allRows.filter((r) => r.name.toLowerCase().includes(q) || r.domain?.toLowerCase().includes(q))
       : allRows
     return sortRows(filtered, sortKey, sortDir)
   }, [allRows, search, sortKey, sortDir])
@@ -199,9 +200,9 @@ export function VendorsPage() {
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Vendors</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Suppliers</h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            {allRows.length} vendor{allRows.length !== 1 ? 's' : ''} from {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+            {allRows.length} supplier{allRows.length !== 1 ? 's' : ''} from {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
           </p>
         </div>
 
@@ -212,7 +213,7 @@ export function VendorsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search vendors…"
+            placeholder="Search suppliers…"
             className="h-9 w-full rounded-lg border border-border bg-white dark:bg-white/4 py-2 pl-9 pr-3 text-sm text-slate-800 dark:text-slate-300 placeholder:text-slate-400 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
           />
         </div>
@@ -225,7 +226,7 @@ export function VendorsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {allRows.length === 0
               ? 'No invoices yet. Drop some files on the Invoices page.'
-              : 'No vendors match your search.'}
+              : 'No suppliers match your search.'}
           </p>
         </div>
       ) : (
@@ -233,7 +234,7 @@ export function VendorsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-slate-50 dark:bg-white/2 text-left">
               <tr>
-                <Th label="Vendor" sortBy="vendor" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} className="w-60" />
+                <Th label="Supplier" sortBy="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} className="w-60" />
                 <Th label="Invoices" sortBy="invoiceCount" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
                 <Th label="Total spend" sortBy="total" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
                 <Th label="Avg invoice" sortBy="avg" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
@@ -252,9 +253,9 @@ export function VendorsPage() {
                   <tr key={row.key} className="bg-surface hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <VendorAvatar vendor={row.vendor} logoUrl={row.logoUrl} logoBgColor={row.logoBgColor} />
+                        <SupplierAvatar name={row.name} logoUrl={row.logoUrl} logoBgColor={row.logoBgColor} />
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-900 dark:text-slate-100">{row.vendor}</p>
+                          <p className="truncate font-medium text-slate-900 dark:text-slate-100">{row.name}</p>
                           {row.domain && (
                             <p className="truncate text-xs text-slate-500">{row.domain}</p>
                           )}
@@ -282,7 +283,7 @@ export function VendorsPage() {
                           target="_blank"
                           rel="noreferrer"
                           className="text-slate-400 hover:text-accent transition-colors"
-                          aria-label={`Visit ${row.vendor}`}
+                          aria-label={`Visit ${row.name}`}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>

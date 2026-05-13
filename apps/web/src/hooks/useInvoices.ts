@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/react'
 import { createApiClient } from '@/lib/api'
 import type { Invoice } from '@financio/types'
 
-/** Fetches all invoices once on mount. Suitable for read-only pages (dashboard, vendors). */
+/** Fetches all invoices once on mount. Suitable for read-only pages (dashboard, suppliers). */
 export function useInvoices() {
   const { getToken } = useAuth()
   const api = useMemo(() => createApiClient(() => getToken()), [getToken])

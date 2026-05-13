@@ -312,7 +312,7 @@ function FilterBar({ filters, currencies, onChange }: {
           type="text"
           value={filters.text}
           onChange={(e) => onChange({ ...filters, text: e.target.value })}
-          placeholder="Search vendor, invoice #…"
+          placeholder="Search supplier or invoice #…"
           className="h-9 w-full rounded-lg border border-border bg-white dark:bg-white/4 py-2 pl-9 pr-9 text-sm text-slate-800 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
         />
         {filters.text && (
@@ -591,10 +591,10 @@ export function InvoiceTable({
       ),
       enableSorting: false,
     },
-    // ── Vendor ──
+    // ── Supplier (field: vendor) ──
     {
       accessorKey: 'vendor',
-      header: 'Vendor',
+      header: 'Supplier',
       cell: ({ row }) => {
         const { id, vendor, vendorDomain, logoUrl, logoBgColor, editedFields } = row.original
         const recurring = isLikelyRecurring(row.original, invoices)

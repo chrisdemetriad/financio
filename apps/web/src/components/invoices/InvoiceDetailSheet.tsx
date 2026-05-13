@@ -134,9 +134,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetail
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Vendor */}
+          {/* Supplier */}
           <section>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Vendor</p>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Supplier</p>
             <div className="flex items-center gap-3">
               {invoice.logoUrl && (
                 <div
@@ -147,7 +147,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetail
                 </div>
               )}
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{invoice.vendor ?? 'Unknown vendor'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{invoice.vendor ?? 'Unknown supplier'}</p>
                 {invoice.vendorDomain && (
                   <a
                     href={`https://${invoice.vendorDomain}`}

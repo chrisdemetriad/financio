@@ -103,16 +103,16 @@ function useDashboardData(invoices: Invoice[]) {
       if (m === lastMonth) byCurrency[ccy].lastMonth += inv.total ?? 0
     }
 
-    // Top 10 vendors by total spend ————————————————————————————————
-    const byVendor: Record<string, number> = {}
+    // Top 10 suppliers by total spend ————————————————————————————————
+    const bySupplier: Record<string, number> = {}
     for (const inv of complete) {
       const v = inv.vendor ?? 'Unknown'
-      byVendor[v] = (byVendor[v] ?? 0) + (inv.total ?? 0)
+      bySupplier[v] = (bySupplier[v] ?? 0) + (inv.total ?? 0)
     }
-    const topVendors = Object.entries(byVendor)
+    const topSuppliers = Object.entries(bySupplier)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
-      .map(([vendor, total]) => ({ vendor: vendor.length > 18 ? `${vendor.slice(0, 16)}…` : vendor, total }))
+      .map(([supplier, total]) => ({ supplier: supplier.length > 18 ? `${supplier.slice(0, 16)}…` : supplier, total }))
 
     // Spend by month (last 12 months) — separate series per currency ——————
     const last12: string[] = []
@@ -163,7 +163,7 @@ function useDashboardData(invoices: Invoice[]) {
 
     return {
       byCurrency,
-      topVendors,
+      topSuppliers,
       monthlyData,
       topCurrencies,
       currencyBreakdown,
@@ -303,13 +303,13 @@ export function DashboardPage() {
         </Section>
       )}
 
-      {/* ── top vendors ── */}
-      {data.topVendors.length > 0 && (
-        <Section title="Top 10 vendors by spend">
+      {/* ── top suppliers ── */}
+      {data.topSuppliers.length > 0 && (
+        <Section title="Top 10 suppliers by spend">
           <div className="rounded-xl border border-border bg-surface p-4">
-            <ResponsiveContainer width="100%" height={Math.max(200, data.topVendors.length * 38)}>
+            <ResponsiveContainer width="100%" height={Math.max(200, data.topSuppliers.length * 38)}>
               <BarChart
-                data={data.topVendors}
+                data={data.topSuppliers}
                 layout="vertical"
                 margin={{ top: 0, right: 16, bottom: 0, left: 0 }}
               >
@@ -322,15 +322,15 @@ export function DashboardPage() {
                 />
                 <YAxis
                   type="category"
-                  dataKey="vendor"
+                  dataKey="supplier"
                   width={120}
                   tick={{ fontSize: 11, fill: 'currentColor' }}
                   className="text-slate-500"
                 />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                  {data.topVendors.map((entry, i) => (
-                    <Cell key={entry.vendor} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  {data.topSuppliers.map((entry, i) => (
+                    <Cell key={entry.supplier} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>

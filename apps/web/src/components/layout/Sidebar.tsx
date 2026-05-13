@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/invoices', label: 'Invoices', icon: FileText },
-  { to: '/vendors', label: 'Vendors', icon: Building2 },
+  { to: '/suppliers', label: 'Suppliers', icon: Building2 },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/monitoring', label: 'Monitoring', icon: Activity },
 ]

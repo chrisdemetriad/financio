@@ -4,7 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
-import { VendorsPage } from '@/pages/VendorsPage'
+import { SuppliersPage } from '@/pages/SuppliersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { MonitoringPage } from '@/pages/MonitoringPage'
 import { SignInPage } from '@/pages/SignInPage'
@@ -30,7 +30,8 @@ export function createRouter() {
             { path: '/invoices', element: <InvoicesPage /> },
             { path: '/invoices/:id/details', element: <InvoicesPage /> },
             { path: '/invoices/:id/preview', element: <InvoicesPage /> },
-            { path: '/vendors', element: <VendorsPage /> },
+            { path: '/vendors', element: <Navigate to="/suppliers" replace /> },
+            { path: '/suppliers', element: <SuppliersPage /> },
             { path: '/settings', element: <SettingsPage /> },
             { path: '/monitoring', element: <MonitoringPage /> },
           ],

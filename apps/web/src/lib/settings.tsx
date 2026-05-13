@@ -6,7 +6,7 @@ import { createApiClient } from './api'
 import type { ExportFormat } from '@financio/types'
 
 export const ALL_COLUMNS = [
-  { id: 'vendor', label: 'Vendor' },
+  { id: 'vendor', label: 'Supplier' },
   { id: 'tags', label: 'Categories' },
   { id: 'invoiceNumber', label: 'Invoice #' },
   { id: 'invoiceDate', label: 'Date' },
