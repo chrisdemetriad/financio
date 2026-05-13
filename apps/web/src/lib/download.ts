@@ -58,7 +58,7 @@ export async function downloadPdf(invoices: Invoice[]) {
 
   const doc = new jsPDF({ orientation: 'landscape' })
   doc.setFontSize(14)
-  doc.text('Financio — Invoice Export', 14, 16)
+  doc.text('Invoicing Engine — Invoice Export', 14, 16)
   doc.setFontSize(9)
   doc.setTextColor(120)
   doc.text(`Generated ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, 14, 22)

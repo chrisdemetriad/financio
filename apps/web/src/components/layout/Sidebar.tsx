@@ -23,10 +23,13 @@ export function Sidebar() {
     <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Logo */}
       <NavLink to="/dashboard" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
-          F
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[10px] font-bold leading-none text-white">
+          IE
         </div>
-        <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Financio</span>
+        <div className="flex min-w-0 flex-col justify-center leading-tight">
+          <span className="text-[11px] font-semibold tracking-tight text-slate-900 dark:text-white">Invoicing</span>
+          <span className="text-[11px] font-semibold tracking-tight text-slate-900 dark:text-white">Engine</span>
+        </div>
       </NavLink>
 
       {/* Nav */}
