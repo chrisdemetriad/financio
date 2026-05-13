@@ -17,7 +17,7 @@ export function Sidebar() {
   const rawVersion = env.VITE_APP_VERSION?.trim()
   const versionLabel =
     !rawVersion ? 'dev' : rawVersion.length > 12 ? rawVersion.slice(0, 8) : rawVersion
-  const deployedLabel = formatDeployedDisplay(env.VITE_DEPLOYED_AT)
+  const deployedLabel = parseDeployedLabel(env.VITE_DEPLOYED_AT)
 
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
@@ -51,12 +51,12 @@ export function Sidebar() {
 
         <div
           className={cn(
-            'mt-auto select-none pt-3 text-[10px] leading-snug ',
+            'mt-auto select-none pt-3 text-[10px] leading-snug italic',
             'text-slate-400/45 dark:text-slate-500/40',
           )}
         >
           <div>Version: {versionLabel}</div>
-          <div>Deployed: {deployedLabel}</div>
+          {deployedLabel != null ? <div>Deployed: {deployedLabel}</div> : null}
         </div>
       </nav>
 
@@ -75,11 +75,12 @@ export function Sidebar() {
   )
 }
 
-/** e.g. `25 March, 20:45` (local time) */
-function formatDeployedDisplay(value: string | undefined): string {
-  if (!value?.trim()) return ''
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
+/** Formatted deploy time, or `null` to hide the line (unset / bad value). */
+function parseDeployedLabel(value: string | undefined): string | null {
+  const raw = value?.trim()
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
   const day = d.getDate()
   const month = d.toLocaleString('en-GB', { month: 'long' })
   const hours = String(d.getHours()).padStart(2, '0')

@@ -127,13 +127,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # `github.run_started_at` is not a reliable Actions context field; use an
+      # explicit UTC ISO timestamp so Vite can embed it at build time.
+      - name: Record deploy timestamp (UTC)
+        id: frontend_meta
+        shell: bash
+        run: echo "deployed_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
       - name: Build frontend
         working-directory: apps/web
         env:
           VITE_API_URL: ${{ env.VITE_API_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_APP_VERSION: ${{ github.sha }}
-          VITE_DEPLOYED_AT: ${{ github.run_started_at }}
+          VITE_DEPLOYED_AT: ${{ steps.frontend_meta.outputs.deployed_at_utc }}
         run: pnpm build
 
       - name: Upload frontend to S3
