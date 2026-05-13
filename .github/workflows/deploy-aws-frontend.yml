@@ -125,6 +125,8 @@ jobs:
         env:
           VITE_API_URL: ${{ env.VITE_API_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_APP_VERSION: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          VITE_DEPLOYED_AT: ${{ github.run_started_at }}
         run: pnpm build
 
       - name: Upload frontend to S3

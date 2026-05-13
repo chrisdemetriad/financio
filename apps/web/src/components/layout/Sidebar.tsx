@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { FileText, Settings, Activity, Moon, Sun, LayoutDashboard, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/lib/settings'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -13,16 +14,29 @@ const NAV = [
 
 export function Sidebar() {
   const { darkMode, toggleDark } = useSettings()
+  const env = import.meta.env as Record<string, string | undefined>
+  const appVersion = env.VITE_APP_VERSION ? env.VITE_APP_VERSION.slice(0, 7) : 'dev'
+  const deployedAtLabel = formatDeployedAt(env.VITE_DEPLOYED_AT)
 
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Logo */}
-      <NavLink to="/dashboard" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
-          F
-        </div>
-        <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Financio</span>
-      </NavLink>
+      <Tooltip>
+        <TooltipTrigger render={<NavLink to="/dashboard" className="flex h-14 items-center gap-2.5 border-b border-border px-5 hover:opacity-80 transition-opacity" />}>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">
+            F
+          </div>
+          <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Financio</span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          sideOffset={8}
+          className="flex flex-col items-start gap-0.5 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-slate-100 shadow-lg dark:border-white/10 dark:bg-slate-950"
+        >
+          <span>Version: {appVersion}</span>
+          <span>Last deploy: {deployedAtLabel}</span>
+        </TooltipContent>
+      </Tooltip>
 
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
@@ -58,4 +72,17 @@ export function Sidebar() {
       </div>
     </aside>
   )
+}
+
+function formatDeployedAt(value: string | undefined): string {
+  if (!value) return 'local build'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'unknown'
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed)
 }
