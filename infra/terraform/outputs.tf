@@ -54,6 +54,22 @@ output "frontend_cloudfront_domain_name" {
   value       = aws_cloudfront_distribution.frontend.domain_name
 }
 
+output "frontend_acm_dns_validation" {
+  description = "CNAME records to add at your DNS host (e.g. 123-reg) so ACM can issue the certificate. Required when frontend_custom_domains is non-empty."
+  value = length(var.frontend_custom_domains) > 0 ? {
+    for dvo in aws_acm_certificate.frontend[0].domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      type   = dvo.resource_record_type
+      record = dvo.resource_record_value
+    }
+  } : {}
+}
+
+output "frontend_cloudfront_aliases" {
+  description = "Custom domain names configured on CloudFront (empty if using default distribution hostname only)"
+  value       = aws_cloudfront_distribution.frontend.aliases
+}
+
 output "github_actions_role_arn" {
   description = "IAM role ARN to set as AWS_ROLE_ARN in GitHub Actions secrets"
   value       = aws_iam_role.github_actions.arn

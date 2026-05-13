@@ -10,7 +10,8 @@ import { metricsRoutes } from './routes/metrics.js'
 import { proxyLogo } from './lib/logoStorage.js'
 
 function getAllowedOrigins() {
-  const configured = [process.env.CORS_ORIGIN, ...(process.env.CORS_ORIGINS?.split(',') ?? [])]
+  const fromPrimary = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()) ?? []
+  const configured = [...fromPrimary, ...(process.env.CORS_ORIGINS?.split(',') ?? [])]
     .map((origin) => origin?.trim())
     .filter((origin): origin is string => Boolean(origin))
 

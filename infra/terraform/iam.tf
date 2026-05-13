@@ -99,8 +99,8 @@ resource "aws_iam_role_policy" "ecs_task_app" {
         ]
       },
       {
-        Effect = "Allow"
-        Action = ["ecs:DescribeServices"]
+        Effect   = "Allow"
+        Action   = ["ecs:DescribeServices"]
         Resource = "*"
       }
     ]

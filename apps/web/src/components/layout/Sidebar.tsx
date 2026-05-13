@@ -27,8 +27,8 @@ export function Sidebar() {
           IE
         </div>
         <div className="flex min-w-0 flex-col justify-center leading-tight">
-          <span className="text-[11px] font-semibold tracking-tight text-slate-900 dark:text-white">Invoicing</span>
-          <span className="text-[11px] font-semibold tracking-tight text-slate-900 dark:text-white">Engine</span>
+          <span className="text-[14px] font-semibold tracking-tight text-slate-900 dark:text-white">Invoicing</span>
+          <span className="text-[14px] font-semibold tracking-tight text-slate-900 dark:text-white">Engine</span>
         </div>
       </NavLink>
 

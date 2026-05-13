@@ -21,8 +21,8 @@ The user drops invoice files (PDF, PNG, JPG, HEIC) onto the page. A multi-agent 
 2. **Logo agent** runs in parallel → vendor logo fetched from Brandfetch → saved to local disk or S3 → logo column updates
 3. **Review/correct** → user filters the table, spots overdue invoices, and double-clicks fields to correct vendor / invoice number / dates / total / currency inline
 4. **Bulk actions** → user multi-selects rows, sees running total for the current selection, then copies selected rows as CSV / JSON, downloads Excel, or deletes selected
-5. **Analytics** → `/dashboard` is the homepage and summarizes spend by month/vendor/currency and highlights overdue + outstanding invoices
-6. **Vendor analysis** → `/vendors` aggregates invoices by vendor/domain with totals, counts, average invoice size, and last invoice date
+5. **Analytics** → `/dashboard` is the homepage and summarizes spend by month/supplier/currency and highlights overdue + outstanding invoices
+6. **Supplier analysis** → `/suppliers` aggregates invoices by supplier (vendor/domain) with totals, counts, average invoice size, and last invoice date
 7. **Invoice review** → `/invoices` is the main workspace; `/invoices/:id/details` opens the detail drawer and `/invoices/:id/preview` opens the original-file viewer
 8. **Settings** → user configures clipboard format (CSV, JSON, TSV, Markdown) and column visibility
 9. **Clear** → confirmation dialog → all invoices deleted for the current user
@@ -124,7 +124,7 @@ The invoice table is no longer a passive output view. It is the main working sur
 
 - **Bulk selection + actions**: checkbox selection per row plus a floating bulk-actions bar. Keep the existing per-row 3-dot menus as well.
 - **Running totals**: show the sum of `total` for the current selection so accounting users can sanity-check a subset before export.
-- **Filter bar**: vendor / invoice search, status filter, currency filter, and invoice date range. Use styled Shadcn/Base UI controls rather than native browser selects/date inputs.
+- **Filter bar**: supplier / invoice search, status filter, currency filter, and invoice date range. Use styled Shadcn/Base UI controls rather than native browser selects/date inputs.
 - **Inline editing**: allow direct correction of extracted fields in the table for vendor, invoice number, invoice date, due date, total, and currency.
 - **Manual edit indicator**: visually mark fields that were actually changed by the user. Double-clicking alone must not mark a field as edited.
 - **Overdue highlighting**: compare `dueDate` with today and visually flag overdue invoices without needing to open the drawer.
@@ -196,7 +196,7 @@ The API runs on **ECS Express Mode** in AWS (`eu-west-2` by default). App Runner
 - **ECR** — container image registry
 - **CloudFront + S3** — static frontend hosting from a dedicated frontend bucket with SPA-friendly fallback routing
 - **CloudWatch / ECS APIs** — task counts for the `/monitoring` page (`GET /metrics`)
-- **CORS configuration** — backend supports `CORS_ORIGIN` or comma-separated `CORS_ORIGINS` so local dev and the CloudFront (or other AWS-hosted) frontends stay authorized without refactors
+- **CORS configuration** — backend supports comma-separated origins in `CORS_ORIGIN` and/or `CORS_ORIGINS` so local dev, CloudFront default URLs, and custom domains (apex + www) stay authorized without refactors
 
 ### CI/CD (GitHub Actions)
 - `test.yml` — install, lint, Vitest unit tests, Playwright e2e
@@ -299,7 +299,7 @@ Additional table UX work landed after the original 40-commit outline and should 
 - URL-backed invoice overlays: `/invoices/:id/details` and `/invoices/:id/preview`
 - `/dashboard` page with spend/overdue/outstanding analytics
 - `/dashboard` promoted to homepage; invoice workspace moved to `/invoices`
-- `/vendors` page with frontend-only aggregation by vendor/domain
+- `/suppliers` page with frontend-only aggregation by vendor/domain
 
 See `docs/current-state.md` for the implementation-status summary and table UX rules that future agents should preserve.
 

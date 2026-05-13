@@ -22,6 +22,22 @@ const COLUMNS = [
 
 type Column = (typeof COLUMNS)[number]
 
+const COLUMN_LABELS: Record<Column, string> = {
+  vendor: 'Supplier',
+  invoiceNumber: 'invoiceNumber',
+  invoiceDate: 'invoiceDate',
+  dueDate: 'dueDate',
+  total: 'total',
+  subtotal: 'subtotal',
+  tax: 'tax',
+  currency: 'currency',
+  status: 'status',
+}
+
+function headerLine(sep: string): string {
+  return COLUMNS.map((c) => COLUMN_LABELS[c]).join(sep)
+}
+
 function row(invoice: Invoice): Record<Column, string> {
   return {
     vendor: formatValue(invoice.vendor),
@@ -37,7 +53,7 @@ function row(invoice: Invoice): Record<Column, string> {
 }
 
 export function invoicesToCsv(invoices: Invoice[]): string {
-  const header = COLUMNS.join(',')
+  const header = headerLine(',')
   const rows = invoices.map((inv) => {
     const r = row(inv)
     return COLUMNS.map((col) => `"${r[col].replace(/"/g, '""')}"`).join(',')
@@ -46,7 +62,7 @@ export function invoicesToCsv(invoices: Invoice[]): string {
 }
 
 export function invoicesToTsv(invoices: Invoice[]): string {
-  const header = COLUMNS.join('\t')
+  const header = headerLine('\t')
   const rows = invoices.map((inv) => {
     const r = row(inv)
     return COLUMNS.map((col) => r[col]).join('\t')
@@ -63,7 +79,7 @@ export function invoicesToJson(invoices: Invoice[]): string {
 }
 
 export function invoicesToMarkdown(invoices: Invoice[]): string {
-  const header = `| ${COLUMNS.join(' | ')} |`
+  const header = `| ${COLUMNS.map((c) => COLUMN_LABELS[c]).join(' | ')} |`
   const divider = `| ${COLUMNS.map(() => '---').join(' | ')} |`
   const rows = invoices.map((inv) => {
     const r = row(inv)

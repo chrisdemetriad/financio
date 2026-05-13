@@ -33,13 +33,13 @@ The app currently supports:
 
 - invoice upload for PDFs and images
 - extraction + validation flow with persisted invoice rows
-- vendor logo fetching and storage-backed logo display
+- supplier logo fetching and storage-backed logo display
 - per-row actions and bulk export/copy flows
 - settings persistence, including theme and export preferences
 - dashboard analytics derived from invoice data
 - `/dashboard` as the homepage
 - `/invoices` as the main invoice-review workspace
-- vendor-level aggregation in a dedicated `/vendors` page
+- supplier-level aggregation in a dedicated `/suppliers` page
 - a working invoice review table intended for day-to-day accounting-style use
 
 The invoice table is the primary working surface, not just a passive output list.
@@ -52,6 +52,7 @@ The invoice table is the primary working surface, not just a passive output list
 - The API runs on **ECS Express Mode** in `eu-west-2` (App Runner is not used because AWS closed it to new customers).
 - Terraform provisions supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters, frontend S3 bucket, CloudFront) while the GitHub Actions workflow **Deploy API** (`deploy-aws.yml`) builds the API image, pushes to ECR, and creates or updates the ECS Express service.
 - The **frontend** is deployed separately by **Deploy Frontend** (`deploy-aws-frontend.yml`): it builds `apps/web`, resolves the live ECS API URL for `VITE_API_URL`, syncs static assets to the frontend bucket, and invalidates CloudFront.
+- **Custom domain (optional):** Terraform can attach `frontend_custom_domains` to CloudFront and request an **ACM certificate in `us-east-1`**. You add ACM’s DNS validation CNAMEs and app CNAMEs at your registrar (e.g. 123-reg); set `cors_origin` in `terraform.tfvars` to match the real browser origins (comma-separated if apex and www both load the app).
 - Each deploy workflow uses **`paths` filters on `push` to `main`**: API-only changes do not trigger the frontend workflow; web-only changes do not trigger the API workflow. Shared edits (e.g. `packages/types`, lockfile) can trigger both. **CI** (`test.yml`) still runs on every push; deploys are selective.
 - Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev and the CloudFront URL (and any alternate AWS-hosted origins) can be authorized without another API change.
 - The monitoring page reads **ECS running task counts** via `GET /metrics` (not App Runner).
@@ -81,7 +82,7 @@ These behaviors are part of the current baseline and should be preserved unless 
 ### 3. Filter bar
 
 - The table supports:
-  - vendor / invoice search
+  - supplier / invoice search
   - status filter
   - currency filter
   - invoice date range
@@ -91,7 +92,7 @@ These behaviors are part of the current baseline and should be preserved unless 
 ### 4. Inline editing
 
 - Key extracted fields can be corrected directly in the table:
-  - vendor
+  - supplier
   - invoice number
   - invoice date
   - due date
@@ -129,7 +130,7 @@ These behaviors are part of the current baseline and should be preserved unless 
 ### 9. Recurring detection
 
 - The table shows a recurring badge when another invoice exists with:
-  - same vendor
+  - same supplier
   - same currency
   - a total within 5%
   - an invoice date within the last 90 days
@@ -166,15 +167,15 @@ These behaviors are part of the current baseline and should be preserved unless 
 - Current widgets include:
   - spend this month vs last month (separate per currency)
   - spend by month
-  - top vendors by spend
+  - top suppliers by spend
   - currency breakdown
   - overdue count
   - outstanding unpaid totals
 
-### Vendors
+### Suppliers
 
-- `/vendors` is implemented.
-- It aggregates by vendor domain when available, with fallback to vendor name.
+- `/suppliers` is implemented.
+- It aggregates by vendor domain when available, with fallback to vendor name (UK copy uses “supplier”; API field remains `vendor`).
 - Current fields include:
   - logo
   - invoice count
@@ -228,7 +229,7 @@ These are not theoretical; the frontend depends on them now.
 - The app uses a class-based dark mode strategy.
 - The filter bar uses reusable UI primitives for dropdowns and popovers.
 - The table supports both single-row workflows and bulk workflows.
-- Dashboard and vendors pages are frontend aggregation views over invoice data.
+- Dashboard and suppliers pages are frontend aggregation views over invoice data.
 - Original-file QA happens in a dedicated modal rather than overloading the detail drawer.
 - Detail and preview overlays are route-driven rather than purely local component state so browser navigation works as expected.
 

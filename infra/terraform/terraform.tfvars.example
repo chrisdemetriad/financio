@@ -8,7 +8,16 @@ app_name    = "financio"
 db_username = "financio"
 db_password = "CHANGE_ME_strong_password_here"
 
+# Must include every browser origin that calls the API (match CloudFront / custom domain).
+# Comma-separated if you serve the UI on more than one hostname (e.g. apex + www).
 cors_origin = "https://YOUR_FRONTEND_DOMAIN"
+# cors_origin = "https://invoicingengine.com,https://www.invoicingengine.com"
+
+# Custom domains for the React app (CloudFront + ACM in us-east-1). Use [] until DNS is ready.
+# After `terraform apply '-target=aws_acm_certificate.frontend[0]'` (quotes required in zsh), run `terraform output frontend_acm_dns_validation`,
+# add those CNAMEs at 123-reg, then run a full `terraform apply`.
+# frontend_custom_domains = []
+# frontend_custom_domains = ["invoicingengine.com", "www.invoicingengine.com"]
 
 clerk_secret_key   = "sk_live_..."
 openai_api_key     = "sk-proj-..."

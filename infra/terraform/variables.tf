@@ -47,6 +47,18 @@ variable "brandfetch_api_key" {
 }
 
 variable "cors_origin" {
-  description = "Allowed CORS origin (your frontend URL, e.g. https://financio.example.com)"
+  description = "Allowed CORS origin(s) for the API. Comma-separated if you use several (e.g. https://a.com,https://www.a.com). Written to SSM /{app}/cors_origin."
   type        = string
+}
+
+variable "frontend_custom_domains" {
+  description = <<-EOT
+    Hostnames served by CloudFront over HTTPS (e.g. ["invoicingengine.com", "www.invoicingengine.com"]).
+    First entry is the ACM primary domain; any further entries are subject alternative names.
+    Leave [] to keep only the default *.cloudfront.net URL (no custom TLS).
+    After first apply that creates aws_acm_certificate, add the terraform output DNS validation CNAMEs
+    at your registrar before validation can succeed.
+  EOT
+  type        = list(string)
+  default     = []
 }
