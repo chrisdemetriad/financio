@@ -11,13 +11,14 @@ import { SignInPage } from '@/pages/SignInPage'
 
 export function createRouter() {
   return createBrowserRouter([
-    {
-      path: '/sign-in',
-      element: <SignInPage />,
-    },
+    // OAuth / SSO must match before the `/sign-in/*` catch-all.
     {
       path: '/sign-in/sso-callback',
       element: <AuthenticateWithRedirectCallback />,
+    },
+    {
+      path: '/sign-in/*',
+      element: <SignInPage />,
     },
     {
       element: <ProtectedRoute />,
