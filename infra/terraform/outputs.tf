@@ -1,5 +1,5 @@
 output "ecr_repository_url" {
-  description = "ECR repository URL — used in deploy-aws.yml"
+  description = "ECR repository URL — used in Deploy API (deploy-aws.yml)"
   value       = aws_ecr_repository.api.repository_url
 }
 

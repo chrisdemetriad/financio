@@ -50,8 +50,9 @@ The invoice table is the primary working surface, not just a passive output list
 
 - Production infrastructure is **AWS only**, managed with **Terraform** under `infra/terraform/`.
 - The API runs on **ECS Express Mode** in `eu-west-2` (App Runner is not used because AWS closed it to new customers).
-- Terraform provisions supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters, frontend S3 bucket, CloudFront) while the GitHub Actions `deploy-aws.yml` workflow builds the API image, pushes to ECR, and creates or updates the ECS Express service.
-- The **frontend** is deployed separately via `deploy-aws-frontend.yml`: it builds `apps/web`, resolves the live ECS API URL for `VITE_API_URL`, syncs static assets to the frontend bucket, and invalidates CloudFront.
+- Terraform provisions supporting resources (RDS, S3, ECR, IAM roles, SSM runtime parameters, frontend S3 bucket, CloudFront) while the GitHub Actions workflow **Deploy API** (`deploy-aws.yml`) builds the API image, pushes to ECR, and creates or updates the ECS Express service.
+- The **frontend** is deployed separately by **Deploy Frontend** (`deploy-aws-frontend.yml`): it builds `apps/web`, resolves the live ECS API URL for `VITE_API_URL`, syncs static assets to the frontend bucket, and invalidates CloudFront.
+- Each deploy workflow uses **`paths` filters on `push` to `main`**: API-only changes do not trigger the frontend workflow; web-only changes do not trigger the API workflow. Shared edits (e.g. `packages/types`, lockfile) can trigger both. **CI** (`test.yml`) still runs on every push; deploys are selective.
 - Backend CORS accepts either a single `CORS_ORIGIN` or a comma-separated `CORS_ORIGINS` list so local dev and the CloudFront URL (and any alternate AWS-hosted origins) can be authorized without another API change.
 - The monitoring page reads **ECS running task counts** via `GET /metrics` (not App Runner).
 

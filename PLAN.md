@@ -74,7 +74,7 @@ These decisions were made explicitly during planning. A future agent should **no
 | Auth | Clerk | Magic-link + OAuth, ~30 min integration, deferred |
 | Monorepo | pnpm workspaces + Turborepo | Independent `apps/web` and `apps/api` |
 | IaC | Terraform (AWS) | Manages RDS, S3, ECR, IAM, SSM parameters, frontend S3 + CloudFront, and supporting wiring for ECS Express |
-| CI/CD | GitHub Actions + OIDC (AWS) | API image push and ECS updates (`deploy-aws.yml`); static web deploy (`deploy-aws-frontend.yml`); no long-lived AWS keys when OIDC is configured |
+| CI/CD | GitHub Actions + OIDC (AWS) | **Deploy API** (`deploy-aws.yml`) and **Deploy Frontend** (`deploy-aws-frontend.yml`); no long-lived AWS keys when OIDC is configured |
 | Testing | Playwright (e2e) + Vitest (unit) + k6 (load) | Full testing story |
 
 ---
@@ -200,8 +200,8 @@ The API runs on **ECS Express Mode** in AWS (`eu-west-2` by default). App Runner
 
 ### CI/CD (GitHub Actions)
 - `test.yml` — install, lint, Vitest unit tests, Playwright e2e
-- `deploy-aws.yml` — build Docker image → ECR → create/update ECS Express Mode service (OIDC or access keys)
-- `deploy-aws-frontend.yml` — build `apps/web` with the live API URL → upload to S3 frontend bucket → invalidate CloudFront
+- **Deploy API** (`deploy-aws.yml`) — build Docker image → ECR → create/update ECS Express Mode service (OIDC or access keys); runs on `push` to `main` only when API-related paths change (see workflow `paths`), plus `workflow_dispatch`
+- **Deploy Frontend** (`deploy-aws-frontend.yml`) — build `apps/web` with the live API URL → upload to S3 frontend bucket → invalidate CloudFront; runs on `push` to `main` when web or shared package paths change, plus `workflow_dispatch` (no longer chained after every API deploy)
 
 ---
 
@@ -311,7 +311,7 @@ See `docs/current-state.md` for the implementation-status summary and table UX r
 | 34 | `feat: aws frontend deploy` | GitHub Action builds Vite app and syncs to S3 + CloudFront invalidation |
 | 35 | `feat: makefile` | `make infra-up-aws`, `make infra-down-aws`, `docker-push-aws` |
 | 36 | `feat: github actions ci` | `test.yml` — lint, Vitest, Playwright |
-| 37 | `feat: github actions cd` | `deploy-aws.yml` + `deploy-aws-frontend.yml` (OIDC to AWS) |
+| 37 | `feat: github actions cd` | Deploy API + Deploy Frontend workflows (`deploy-aws.yml`, `deploy-aws-frontend.yml`, OIDC to AWS) |
 
 ### Phase 8 — Monitoring & Load Testing (commits 38–40)
 
