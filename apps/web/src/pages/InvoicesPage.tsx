@@ -54,6 +54,8 @@ export function InvoicesPage() {
   const [selectionClearToken, setSelectionClearToken] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const processingIds = useRef<Set<string>>(new Set())
+  /** Completed uploads held until every in-flight invoice finishes, then copied once. */
+  const completedPendingCopy = useRef<Invoice[]>([])
   const dropZoneRef = useRef<HTMLInputElement | null>(null)
 
   const hasProcessing = invoices.some((inv) => inv.status === 'processing') ||
@@ -89,23 +91,38 @@ export function InvoicesPage() {
     })
   }, [invoices])
 
-  // Poll while any invoice is processing; detect completions and auto-copy
+  // Poll while any invoice is processing; batch-copy when the whole queue is idle
   useEffect(() => {
     if (hasProcessing) {
       if (!pollRef.current) {
         pollRef.current = setInterval(async () => {
           try {
             const fresh = await api.getInvoices()
-            const justCompleted = fresh.filter(
-              (inv) => inv.status === 'complete' && processingIds.current.has(inv.id),
+
+            for (const inv of fresh) {
+              if (!processingIds.current.has(inv.id)) continue
+              if (inv.status === 'complete') {
+                processingIds.current.delete(inv.id)
+                completedPendingCopy.current.push(inv)
+              } else if (inv.status === 'error') {
+                processingIds.current.delete(inv.id)
+              }
+            }
+
+            const stillActive = fresh.some(
+              (inv) => inv.status === 'processing' || inv.status === 'awaiting_password',
             )
-            if (justCompleted.length > 0) {
-              for (const inv of justCompleted) processingIds.current.delete(inv.id)
-              const text = justCompleted.map((inv) => invoiceToFormat(inv, exportFormat)).join('\n')
+            if (!stillActive && completedPendingCopy.current.length > 0) {
+              const batch = [...completedPendingCopy.current].sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+              )
+              completedPendingCopy.current = []
+              const text = batch.map((inv) => invoiceToFormat(inv, exportFormat)).join('\n')
               await copyToClipboard(text).catch(() => null)
-              const count = justCompleted.length
+              const count = batch.length
               toast.success(`${count} entr${count > 1 ? 'ies' : 'y'} copied to clipboard as ${exportFormat.toUpperCase()}`, { duration: 4000 })
             }
+
             setInvoices(fresh)
             // Keep selected invoice in sync
             if (selectedInvoice) {
@@ -185,6 +202,7 @@ export function InvoicesPage() {
   const handleClear = async () => {
     await api.clearInvoices()
     processingIds.current.clear()
+    completedPendingCopy.current = []
     setInvoices([])
     setSelectedInvoice(null)
     setViewingFile(null)
