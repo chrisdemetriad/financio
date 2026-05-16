@@ -59,7 +59,7 @@ model UserSettings {
   id             String   @id @default(cuid())
   userId         String   @unique
   exportFormat   String   @default("csv")
-  visibleColumns Json     @default("[\"vendor\",\"invoiceNumber\",\"invoiceDate\",\"dueDate\",\"total\",\"currency\",\"status\"]")
+  visibleColumns Json     @default("[\"vendor\",\"description\",\"invoiceNumber\",\"invoiceDate\",\"dueDate\",\"net\",\"vat\",\"gross\",\"currency\",\"status\"]")
   darkMode       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

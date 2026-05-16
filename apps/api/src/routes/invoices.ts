@@ -264,6 +264,8 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       invoiceDate: z.string().nullable().optional(),
       dueDate: z.string().nullable().optional(),
       total: z.number().nullable().optional(),
+      subtotal: z.number().nullable().optional(),
+      tax: z.number().nullable().optional(),
       currency: z.string().max(3).nullable().optional(),
       tags: z.array(z.string()).optional(),
       paid: z.boolean().optional(),
@@ -282,6 +284,8 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     if (fields.invoiceDate !== undefined) updateData.invoiceDate = fields.invoiceDate ? new Date(fields.invoiceDate) : null
     if (fields.dueDate !== undefined) updateData.dueDate = fields.dueDate ? new Date(fields.dueDate) : null
     if (fields.total !== undefined) updateData.total = fields.total
+    if (fields.subtotal !== undefined) updateData.subtotal = fields.subtotal
+    if (fields.tax !== undefined) updateData.tax = fields.tax
     if (fields.currency !== undefined) updateData.currency = fields.currency
     if (fields.tags !== undefined) updateData.tags = fields.tags
     if (fields.paid !== undefined) {

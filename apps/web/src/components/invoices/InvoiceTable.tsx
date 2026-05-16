@@ -23,7 +23,28 @@ import {
 } from '@/components/ui/select'
 import { InvoiceRowActions } from './InvoiceRowActions'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
+import { invoiceServiceDescription } from '@financio/exports'
 import { cn } from '@/lib/utils'
+
+const AMOUNT_FIELD_TO_API: Record<string, 'subtotal' | 'tax' | 'total'> = {
+  net: 'subtotal',
+  vat: 'tax',
+  gross: 'total',
+}
+
+function isColumnVisible(id: string | undefined, visibleColumns: string[]): boolean {
+  if (!id) return true
+  const aliases: Record<string, string[]> = {
+    gross: ['gross', 'total'],
+    net: ['net', 'subtotal'],
+    vat: ['vat', 'tax'],
+    total: ['gross', 'total'],
+    subtotal: ['net', 'subtotal'],
+    tax: ['vat', 'tax'],
+  }
+  const keys = aliases[id] ?? [id]
+  return keys.some((k) => visibleColumns.includes(k))
+}
 
 /** Delay before opening the detail drawer so a double-click can mean "edit" instead of "open". */
 const DRAWER_OPEN_DELAY_MS = 280
@@ -41,7 +62,9 @@ const CONFIDENCE_MAP: Record<string, keyof InvoiceConfidence> = {
   invoiceNumber: 'invoiceNumber',
   invoiceDate: 'invoiceDate',
   dueDate: 'dueDate',
-  total: 'total',
+  net: 'subtotal',
+  vat: 'tax',
+  gross: 'total',
   currency: 'currency',
 }
 
@@ -528,16 +551,19 @@ export function InvoiceTable({
 
   const commitEdit = useCallback(async (invoice: Invoice, field: string, rawValue: string) => {
     setEditingCell(null)
+    const apiField = AMOUNT_FIELD_TO_API[field] ?? field
     let value: string | number | null = rawValue.trim() === '' ? null : rawValue.trim()
-    if (field === 'total') value = rawValue.trim() === '' ? null : parseFloat(rawValue)
+    if (apiField === 'subtotal' || apiField === 'tax' || apiField === 'total') {
+      value = rawValue.trim() === '' ? null : parseFloat(rawValue)
+    }
 
     // Don't save — or mark as edited — when nothing actually changed
-    const original = invoice[field as keyof Invoice]
+    const original = invoice[apiField as keyof Invoice]
     const originalStr = original === null || original === undefined ? '' : String(original)
     const newStr = value === null ? '' : String(value)
     if (originalStr === newStr) return
 
-    await onUpdate(invoice.id, field, value)
+    await onUpdate(invoice.id, apiField, value)
   }, [onUpdate])
 
   const preFiltered = useMemo(() => invoices.filter((inv) => {
@@ -637,6 +663,23 @@ export function InvoiceTable({
         )
       },
     },
+    // ── Service description (from line items) ──
+    {
+      id: 'description',
+      header: 'Description',
+      cell: ({ row }) => {
+        const text = invoiceServiceDescription(row.original)
+        return (
+          <span
+            className="block max-w-[240px] truncate text-sm text-slate-700 dark:text-slate-300"
+            title={text || undefined}
+          >
+            {text || '—'}
+          </span>
+        )
+      },
+      enableSorting: false,
+    },
     // ── Tags / Categories ──
     {
       accessorKey: 'tags',
@@ -722,17 +765,52 @@ export function InvoiceTable({
         )
       },
     },
-    // ── Total ──
+    // ── Net (ex-VAT) ──
     {
+      id: 'net',
+      accessorKey: 'subtotal',
+      header: () => <span className="text-right">Net</span>,
+      cell: ({ row }) => {
+        const { id, subtotal, currency, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="net" rawValue={subtotal?.toString() ?? ''} inputType="number"
+            isEdited={editedFields?.includes('subtotal')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'net', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('block w-full text-right font-mono text-sm text-slate-800 dark:text-slate-200 rounded px-1', confidenceBg(row.original, 'net'))}>
+            {money(subtotal, currency)}
+          </EditCell>
+        )
+      },
+    },
+    // ── VAT ──
+    {
+      id: 'vat',
+      accessorKey: 'tax',
+      header: () => <span className="text-right">VAT</span>,
+      cell: ({ row }) => {
+        const { id, tax, currency, editedFields } = row.original
+        return (
+          <EditCell rowId={id} field="vat" rawValue={tax?.toString() ?? ''} inputType="number"
+            isEdited={editedFields?.includes('tax')} editingCell={editingCell}
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'vat', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('block w-full text-right font-mono text-sm text-slate-800 dark:text-slate-200 rounded px-1', confidenceBg(row.original, 'vat'))}>
+            {money(tax, currency)}
+          </EditCell>
+        )
+      },
+    },
+    // ── Gross (invoice total) ──
+    {
+      id: 'gross',
       accessorKey: 'total',
-      header: () => <span className="text-right">Total</span>,
+      header: () => <span className="text-right">Gross</span>,
       cell: ({ row }) => {
         const { id, total, currency, editedFields } = row.original
         return (
-          <EditCell rowId={id} field="total" rawValue={total?.toString() ?? ''} inputType="number"
+          <EditCell rowId={id} field="gross" rawValue={total?.toString() ?? ''} inputType="number"
             isEdited={editedFields?.includes('total')} editingCell={editingCell}
-            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'total', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
-            className={cn('block w-full text-right font-mono text-sm font-medium text-slate-900 dark:text-slate-100 rounded px-1', confidenceBg(row.original, 'total'))}>
+            onStartEdit={startEdit} onCommit={(v) => commitEdit(row.original, 'gross', v)} onCancel={cancelEdit} onCancelPendingDrawer={cancelPendingDrawer}
+            className={cn('block w-full text-right font-mono text-sm font-medium text-slate-900 dark:text-slate-100 rounded px-1', confidenceBg(row.original, 'gross'))}>
             {money(total, currency)}
           </EditCell>
         )
@@ -822,10 +900,12 @@ export function InvoiceTable({
   ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, onViewFile, onRequestDelete, invoices])
 
   const visibleCols = useMemo(() => columns.filter((col) => {
-    const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
+    // Prefer explicit column id (net/vat/gross) over accessorKey (subtotal/tax/total)
+    const def = col as { id?: string; accessorKey?: string }
+    const id = def.id ?? def.accessorKey
     if (id === 'select' || id === 'actions' || id === 'file') return true
     if (id === 'tags') return hasAnyTags || visibleColumns.includes('tags')
-    return !id || visibleColumns.includes(id)
+    return !id || isColumnVisible(id, visibleColumns)
   }), [columns, visibleColumns, hasAnyTags])
 
   const table = useReactTable({

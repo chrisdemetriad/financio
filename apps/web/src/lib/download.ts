@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import type { Invoice } from '@financio/types'
-import { invoicesToCsv, invoicesToTsv, invoicesToJson, invoicesToMarkdown } from '@financio/exports'
+import { invoiceServiceDescription, invoicesToCsv, invoicesToTsv, invoicesToJson, invoicesToMarkdown } from '@financio/exports'
 
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -37,12 +37,13 @@ export function downloadMarkdown(invoices: Invoice[]) {
 export function downloadXlsx(invoices: Invoice[]) {
   const rows = invoices.map((inv) => ({
     Supplier: inv.vendor ?? '',
+    Description: invoiceServiceDescription(inv),
     'Invoice #': inv.invoiceNumber ?? '',
     Date: inv.invoiceDate ?? '',
     'Due date': inv.dueDate ?? '',
-    Subtotal: inv.subtotal ?? '',
-    Tax: inv.tax ?? '',
-    Total: inv.total ?? '',
+    Net: inv.subtotal ?? '',
+    VAT: inv.tax ?? '',
+    Gross: inv.total ?? '',
     Currency: inv.currency ?? '',
     Status: inv.status,
   }))

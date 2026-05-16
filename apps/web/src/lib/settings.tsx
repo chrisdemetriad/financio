@@ -7,11 +7,14 @@ import type { ExportFormat } from '@financio/types'
 
 export const ALL_COLUMNS = [
   { id: 'vendor', label: 'Supplier' },
+  { id: 'description', label: 'Description' },
   { id: 'tags', label: 'Categories' },
   { id: 'invoiceNumber', label: 'Invoice #' },
   { id: 'invoiceDate', label: 'Date' },
   { id: 'dueDate', label: 'Due date' },
-  { id: 'total', label: 'Total' },
+  { id: 'net', label: 'Net' },
+  { id: 'vat', label: 'VAT' },
+  { id: 'gross', label: 'Gross' },
   { id: 'currency', label: 'Currency' },
   { id: 'status', label: 'Status' },
   { id: 'createdAt', label: 'Uploaded' },
@@ -20,8 +23,25 @@ export const ALL_COLUMNS = [
 export type ColumnId = (typeof ALL_COLUMNS)[number]['id']
 
 const DEFAULT_VISIBLE: ColumnId[] = [
-  'vendor', 'tags', 'invoiceNumber', 'invoiceDate', 'dueDate', 'total', 'currency', 'status',
+  'vendor', 'description', 'invoiceNumber', 'invoiceDate', 'dueDate', 'net', 'vat', 'gross', 'currency', 'status',
 ]
+
+const LEGACY_COLUMN_IDS: Record<string, ColumnId> = {
+  total: 'gross',
+  subtotal: 'net',
+  tax: 'vat',
+}
+
+/** Map saved/API column ids to current ids and drop unknowns. */
+export function normalizeVisibleColumns(cols: string[]): ColumnId[] {
+  const known = new Set(ALL_COLUMNS.map((c) => c.id))
+  const out: ColumnId[] = []
+  for (const col of cols) {
+    const id = (LEGACY_COLUMN_IDS[col] ?? col) as ColumnId
+    if (known.has(id) && !out.includes(id)) out.push(id)
+  }
+  return out.length > 0 ? out : DEFAULT_VISIBLE
+}
 
 interface SettingsState {
   exportFormat: ExportFormat
@@ -88,7 +108,7 @@ export function SettingsSyncer() {
         _applyRemote({
           exportFormat: s.exportFormat as ExportFormat,
           darkMode: s.darkMode,
-          visibleColumns: (s.visibleColumns as ColumnId[]) ?? DEFAULT_VISIBLE,
+          visibleColumns: normalizeVisibleColumns(s.visibleColumns as string[]),
         })
       })
       .catch(() => null)

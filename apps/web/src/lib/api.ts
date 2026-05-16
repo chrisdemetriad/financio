@@ -46,6 +46,8 @@ export function createApiClient(getToken: () => Promise<string | null>) {
         invoiceDate?: string | null
         dueDate?: string | null
         total?: number | null
+        subtotal?: number | null
+        tax?: number | null
         currency?: string | null
         tags?: string[]
         paid?: boolean

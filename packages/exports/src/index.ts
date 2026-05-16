@@ -1,6 +1,9 @@
 // Export utilities — XLSX and PDF added at commits 29–30
 
 import type { Invoice, ExportFormat } from '@financio/types'
+import { invoiceServiceDescription } from './invoice.js'
+
+export { invoiceServiceDescription } from './invoice.js'
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -10,12 +13,13 @@ function formatValue(value: unknown): string {
 
 const COLUMNS = [
   'vendor',
+  'description',
   'invoiceNumber',
   'invoiceDate',
   'dueDate',
-  'total',
-  'subtotal',
-  'tax',
+  'net',
+  'vat',
+  'gross',
   'currency',
   'status',
 ] as const
@@ -24,12 +28,13 @@ type Column = (typeof COLUMNS)[number]
 
 const COLUMN_LABELS: Record<Column, string> = {
   vendor: 'Supplier',
+  description: 'Description',
   invoiceNumber: 'invoiceNumber',
   invoiceDate: 'invoiceDate',
   dueDate: 'dueDate',
-  total: 'total',
-  subtotal: 'subtotal',
-  tax: 'tax',
+  net: 'net',
+  vat: 'vat',
+  gross: 'gross',
   currency: 'currency',
   status: 'status',
 }
@@ -41,12 +46,13 @@ function headerLine(sep: string): string {
 function row(invoice: Invoice): Record<Column, string> {
   return {
     vendor: formatValue(invoice.vendor),
+    description: formatValue(invoiceServiceDescription(invoice)),
     invoiceNumber: formatValue(invoice.invoiceNumber),
     invoiceDate: formatValue(invoice.invoiceDate),
     dueDate: formatValue(invoice.dueDate),
-    total: formatValue(invoice.total),
-    subtotal: formatValue(invoice.subtotal),
-    tax: formatValue(invoice.tax),
+    net: formatValue(invoice.subtotal),
+    vat: formatValue(invoice.tax),
+    gross: formatValue(invoice.total),
     currency: formatValue(invoice.currency),
     status: formatValue(invoice.status),
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { invoiceServiceDescription } from '@financio/exports'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
 
 const DEFAULT_TAGS = [
@@ -20,6 +21,14 @@ const STATUS_PILL: Record<string, string> = {
   complete: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   error: 'bg-red-500/15 text-red-700 dark:text-red-300',
   awaiting_password: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+}
+
+function money(value: number, currency: string | null) {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: currency ?? 'GBP',
+    minimumFractionDigits: 2,
+  }).format(value)
 }
 
 function conf(value: number | null | undefined): { color: string; label: string } {
@@ -74,6 +83,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
   const currentInvoice = invoice
 
   const c = currentInvoice.confidence as InvoiceConfidence
+  const serviceDescription = invoiceServiceDescription(currentInvoice)
 
   async function toggleTag(tag: string) {
     if (!onUpdate) return
@@ -164,6 +174,15 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
             </div>
           </section>
 
+          {serviceDescription && (
+            <section>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Description</p>
+              <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-800 dark:bg-white/2 dark:text-slate-200">
+                {serviceDescription}
+              </p>
+            </section>
+          )}
+
           {/* Payment status */}
           <section>
             <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Payment</p>
@@ -231,9 +250,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
           <section>
             <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Financials</p>
             <div className="space-y-1">
-              <Field label="Subtotal" value={invoice.subtotal !== null ? `${invoice.currency ?? ''} ${invoice.subtotal}` : null} confidence={c.subtotal} />
-              <Field label="Tax" value={invoice.tax !== null ? `${invoice.currency ?? ''} ${invoice.tax}` : null} confidence={c.tax} />
-              <Field label="Total" value={invoice.total !== null ? `${invoice.currency ?? ''} ${invoice.total}` : null} confidence={c.total} />
+              <Field label="Net (ex. VAT)" value={invoice.subtotal !== null ? money(invoice.subtotal, invoice.currency) : null} confidence={c.subtotal} />
+              <Field label="VAT" value={invoice.tax !== null ? money(invoice.tax, invoice.currency) : null} confidence={c.tax} />
+              <Field label="Gross" value={invoice.total !== null ? money(invoice.total, invoice.currency) : null} confidence={c.total} />
             </div>
           </section>
 
