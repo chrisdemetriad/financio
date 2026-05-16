@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square } from 'lucide-react'
+import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
 
@@ -12,6 +12,7 @@ interface InvoiceDetailSheetProps {
   invoice: Invoice | null
   onClose: () => void
   onUpdate?: (id: string, patch: Partial<Pick<Invoice, 'tags' | 'paid' | 'paidDate'>>) => Promise<void>
+  onDelete?: (invoice: Invoice) => void
 }
 
 const STATUS_PILL: Record<string, string> = {
@@ -66,7 +67,7 @@ function Field({
   )
 }
 
-export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetailSheetProps) {
+export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: InvoiceDetailSheetProps) {
   const [saving, setSaving] = useState(false)
 
   if (!invoice) return null
@@ -256,6 +257,19 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate }: InvoiceDetail
             </section>
           )}
         </div>
+
+        {onDelete && (
+          <div className="border-t border-border px-5 py-4">
+            <button
+              type="button"
+              onClick={() => onDelete(currentInvoice)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete invoice
+            </button>
+          </div>
+        )}
       </div>
     </>
   )

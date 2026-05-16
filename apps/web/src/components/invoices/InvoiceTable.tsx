@@ -478,7 +478,8 @@ interface InvoiceTableProps {
   onViewDetails: (invoice: Invoice) => void
   onViewFile: (invoice: Invoice) => void
   onUpdate: (id: string, field: string, value: string | number | null) => Promise<void>
-  onDeleteSelected: (ids: string[]) => Promise<void>
+  onRequestDelete: (invoices: Invoice[]) => void
+  selectionClearToken?: number
   onCopySelected: (invoices: Invoice[], format: 'csv' | 'json') => void
   onDownloadSelected: (invoices: Invoice[]) => void
 }
@@ -487,12 +488,16 @@ interface InvoiceTableProps {
 
 export function InvoiceTable({
   invoices, visibleColumns, onViewDetails, onViewFile,
-  onUpdate, onDeleteSelected, onCopySelected, onDownloadSelected,
+  onUpdate, onRequestDelete, selectionClearToken = 0, onCopySelected, onDownloadSelected,
 }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
+
+  useEffect(() => {
+    if (selectionClearToken > 0) setRowSelection({})
+  }, [selectionClearToken])
 
   const pendingDrawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelPendingDrawer = useCallback(() => {
@@ -805,10 +810,16 @@ export function InvoiceTable({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => <InvoiceRowActions invoice={row.original} onViewDetails={onViewDetails} />,
+      cell: ({ row }) => (
+        <InvoiceRowActions
+          invoice={row.original}
+          onViewDetails={onViewDetails}
+          onDelete={(inv) => onRequestDelete([inv])}
+        />
+      ),
       enableSorting: false,
     },
-  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, onViewFile, invoices])
+  ], [editingCell, startEdit, cancelEdit, commitEdit, cancelPendingDrawer, onViewDetails, onViewFile, onRequestDelete, invoices])
 
   const visibleCols = useMemo(() => columns.filter((col) => {
     const id = (col as { accessorKey?: string; id?: string }).accessorKey ?? (col as { id?: string }).id
@@ -925,7 +936,7 @@ export function InvoiceTable({
         onCopyCsv={() => onCopySelected(selectedInvoices, 'csv')}
         onCopyJson={() => onCopySelected(selectedInvoices, 'json')}
         onDownloadExcel={() => onDownloadSelected(selectedInvoices)}
-        onDelete={() => onDeleteSelected(selectedInvoices.map((i) => i.id)).then(() => setRowSelection({}))}
+        onDelete={() => onRequestDelete(selectedInvoices)}
         onClear={() => setRowSelection({})}
       />
 

@@ -1,4 +1,4 @@
-import { MoreHorizontal, Download, FileText, Sheet, FileJson, Table2 } from 'lucide-react'
+import { MoreHorizontal, Download, FileText, Sheet, FileJson, Table2, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +13,10 @@ import type { Invoice } from '@financio/types'
 interface InvoiceRowActionsProps {
   invoice: Invoice
   onViewDetails: (invoice: Invoice) => void
+  onDelete: (invoice: Invoice) => void
 }
 
-export function InvoiceRowActions({ invoice, onViewDetails }: InvoiceRowActionsProps) {
+export function InvoiceRowActions({ invoice, onViewDetails, onDelete }: InvoiceRowActionsProps) {
   const invoices = [invoice]
 
   return (
@@ -41,6 +42,13 @@ export function InvoiceRowActions({ invoice, onViewDetails }: InvoiceRowActionsP
           >
             <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             View details
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm text-red-500 outline-none focus:bg-red-500/10 focus:text-red-400"
+            onClick={() => onDelete(invoice)}
+          >
+            <Trash2 className="h-3.5 w-3.5 shrink-0" />
+            Delete
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuGroup>

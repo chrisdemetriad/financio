@@ -18,6 +18,7 @@ import { DropZone } from '@/components/invoices/DropZone'
 import { InvoiceTable } from '@/components/invoices/InvoiceTable'
 import { PasswordModal } from '@/components/invoices/PasswordModal'
 import { InvoiceDetailSheet } from '@/components/invoices/InvoiceDetailSheet'
+import { DeleteInvoiceDialog } from '@/components/invoices/DeleteInvoiceDialog'
 import { FileViewerModal } from '@/components/invoices/FileViewerModal'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsModal } from '@/components/ShortcutsModal'
@@ -49,6 +50,8 @@ export function InvoicesPage() {
   const [viewingFile, setViewingFile] = useState<Invoice | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<Invoice[] | null>(null)
+  const [selectionClearToken, setSelectionClearToken] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const processingIds = useRef<Set<string>>(new Set())
   const dropZoneRef = useRef<HTMLInputElement | null>(null)
@@ -248,8 +251,20 @@ export function InvoicesPage() {
     setInvoices((prev) => prev.filter((inv) => !ids.includes(inv.id)))
     if (selectedInvoice && ids.includes(selectedInvoice.id)) { setSelectedInvoice(null); navigate('/invoices') }
     if (viewingFile && ids.includes(viewingFile.id)) { setViewingFile(null); navigate('/invoices') }
+    setSelectionClearToken((t) => t + 1)
     toast.success(`${ids.length} invoice${ids.length > 1 ? 's' : ''} deleted`)
   }, [api, selectedInvoice, viewingFile, navigate])
+
+  const handleRequestDelete = useCallback((invs: Invoice[]) => {
+    setPendingDelete(invs)
+  }, [])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete?.length) return
+    const ids = pendingDelete.map((i) => i.id)
+    await handleDeleteSelected(ids)
+    setPendingDelete(null)
+  }, [pendingDelete, handleDeleteSelected])
 
   const handleCopySelected = useCallback((selected: Invoice[], format: 'csv' | 'json') => {
     const text = selected.map((inv) => invoiceToFormat(inv, format)).join('\n')
@@ -333,7 +348,8 @@ export function InvoicesPage() {
         onViewDetails={(inv) => navigate(`/invoices/${inv.id}/details`)}
         onViewFile={(inv) => navigate(`/invoices/${inv.id}/preview`)}
         onUpdate={handleUpdate}
-        onDeleteSelected={handleDeleteSelected}
+        onRequestDelete={handleRequestDelete}
+        selectionClearToken={selectionClearToken}
         onCopySelected={handleCopySelected}
         onDownloadSelected={handleDownloadSelected}
       />
@@ -343,6 +359,15 @@ export function InvoicesPage() {
         invoice={selectedInvoice}
         onClose={() => { setSelectedInvoice(null); navigate('/invoices') }}
         onUpdate={handleDrawerUpdate}
+        onDelete={(inv) => handleRequestDelete([inv])}
+      />
+
+      <DeleteInvoiceDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null) }}
+        count={pendingDelete?.length ?? 0}
+        fileName={pendingDelete?.length === 1 ? pendingDelete[0].fileName : null}
+        onConfirm={handleConfirmDelete}
       />
 
       {/* File viewer */}

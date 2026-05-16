@@ -4,7 +4,7 @@ import { createReadStream } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
 import { requireAuth } from '../plugins/clerk.js'
-import { saveUploadedFile } from '../lib/storage.js'
+import { deleteUploadedFile, saveUploadedFile } from '../lib/storage.js'
 import { sha256 } from '../lib/hash.js'
 import { runExtractor, PasswordProtectedError } from '../agents/extractor.js'
 import { runValidator } from '../agents/validator.js'
@@ -308,20 +308,20 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     // Collect unique logo paths before deleting rows
     const rows = await db.invoice.findMany({
       where: { userId: dbUserId },
-      select: { logoUrl: true },
+      select: { logoUrl: true, filePath: true },
     })
-    const logoPaths: string[] = []
-    for (const row of rows as Array<{ logoUrl: string | null }>) {
-      if (row.logoUrl) logoPaths.push(row.logoUrl)
-    }
 
     await db.invoice.deleteMany({ where: { userId: dbUserId } })
 
-    // Delete logo files in background (don't block the response).
-    // logoUrl may be a relative path (/logos/foo.png) or a legacy full URL — normalise either way.
-    Promise.allSettled(logoPaths.map((p) => {
-      const filename = p.split('/logos/').pop()
-      return filename ? deleteLogo(`/logos/${filename}`) : Promise.resolve()
+    // Delete stored files in background (don't block the response).
+    Promise.allSettled(rows.flatMap((row) => {
+      const tasks: Promise<void>[] = []
+      if (row.filePath) tasks.push(deleteUploadedFile(row.filePath))
+      if (row.logoUrl) {
+        const filename = row.logoUrl.split('/logos/').pop()
+        if (filename) tasks.push(deleteLogo(`/logos/${filename}`))
+      }
+      return tasks
     })).catch(() => null)
 
     return reply.status(204).send()
@@ -336,12 +336,17 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Invoice not found', statusCode: 404 })
     }
     await db.invoice.delete({ where: { id } })
-    for (const url of [invoice.logoUrl]) {
-      if (url) {
-        const filename = url.split('/logos/').pop()
-        if (filename) deleteLogo(`/logos/${filename}`).catch(() => null)
-      }
-    }
+
+    Promise.allSettled([
+      deleteUploadedFile(invoice.filePath),
+      ...(invoice.logoUrl
+        ? (() => {
+            const filename = invoice.logoUrl!.split('/logos/').pop()
+            return filename ? [deleteLogo(`/logos/${filename}`)] : []
+          })()
+        : []),
+    ]).catch(() => null)
+
     return reply.status(204).send()
   })
 

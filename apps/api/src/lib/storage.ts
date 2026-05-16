@@ -25,3 +25,14 @@ export async function saveUploadedFile(part: MultipartFile): Promise<{ filePath:
 export function uploadsDir(): string {
   return UPLOADS_DIR
 }
+
+/** Remove an uploaded invoice file from disk (no-op if missing or path empty). */
+export async function deleteUploadedFile(filePath: string | null | undefined): Promise<void> {
+  if (!filePath) return
+  try {
+    const { unlink } = await import('node:fs/promises')
+    await unlink(filePath)
+  } catch {
+    // File may already be gone
+  }
+}
