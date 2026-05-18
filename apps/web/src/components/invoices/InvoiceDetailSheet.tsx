@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square, Trash2 } from 'lucide-react'
+import { X, ExternalLink, AlertTriangle, CheckCircle2, Tag, CheckSquare, Square, Trash2, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { invoiceServiceDescription } from '@financio/exports'
+import { bacsStatsFromSelection } from '@/lib/bacs'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const DEFAULT_TAGS = [
   'Software', 'Travel', 'Office', 'Contractors',
@@ -12,8 +14,10 @@ const DEFAULT_TAGS = [
 interface InvoiceDetailSheetProps {
   invoice: Invoice | null
   onClose: () => void
-  onUpdate?: (id: string, patch: Partial<Pick<Invoice, 'tags' | 'paid' | 'paidDate'>>) => Promise<void>
+  onUpdate?: (id: string, patch: Partial<Pick<Invoice, 'tags' | 'paid' | 'paidDate' | 'payeeSortCode' | 'payeeAccountNumber' | 'payeeAccountName'>> & { editedField?: string }) => Promise<void>
   onDelete?: (invoice: Invoice) => void
+  /** Single-invoice BACS file (same flow as bulk bar: GBP + bank details + origin dialog if needed). */
+  onDownloadBacs?: (invoices: Invoice[]) => void
 }
 
 const STATUS_PILL: Record<string, string> = {
@@ -76,7 +80,7 @@ function Field({
   )
 }
 
-export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: InvoiceDetailSheetProps) {
+export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete, onDownloadBacs }: InvoiceDetailSheetProps) {
   const [saving, setSaving] = useState(false)
 
   if (!invoice) return null
@@ -84,6 +88,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
 
   const c = currentInvoice.confidence as InvoiceConfidence
   const serviceDescription = invoiceServiceDescription(currentInvoice)
+  const bacsStats = bacsStatsFromSelection([currentInvoice])
+  const bacsTooltip =
+    bacsStats.included > 0
+      ? 'Download a BACS Standard 18–style payment file for this invoice (verify with your bank or Modulr).'
+      : 'Requires: status Complete, currency GBP, sort code & account number, and a gross total. Add any missing payee bank details above.'
 
   async function toggleTag(tag: string) {
     if (!onUpdate) return
@@ -93,8 +102,18 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
     try { await onUpdate(currentInvoice.id, { tags: next }) } finally { setSaving(false) }
   }
 
-  async function togglePaid() {
+  async function savePayeeField(field: 'payeeSortCode' | 'payeeAccountNumber' | 'payeeAccountName', raw: string) {
     if (!onUpdate) return
+    const v = raw.trim() || null
+    const cur = currentInvoice[field]
+    if ((cur ?? '') === (v ?? '')) return
+    setSaving(true)
+    try {
+      await onUpdate(currentInvoice.id, { [field]: v, editedField: field })
+    } finally { setSaving(false) }
+  }
+
+  async function togglePaid() {
     const next = !currentInvoice.paid
     setSaving(true)
     try {
@@ -256,6 +275,46 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
             </div>
           </section>
 
+          {(invoice.currency ?? '').toUpperCase() === 'GBP' && invoice.status === 'complete' && onUpdate && (
+            <section>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+                Payee bank (BACS)
+              </p>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                UK sort code and account from the invoice — needed for BACS payment files. Edit if the extractor missed them.
+              </p>
+              <div className="space-y-2">
+                <input
+                  key={`${invoice.id}-sort-${invoice.payeeSortCode ?? ''}`}
+                  type="text"
+                  disabled={saving}
+                  defaultValue={invoice.payeeSortCode ?? ''}
+                  onBlur={(e) => savePayeeField('payeeSortCode', e.target.value)}
+                  placeholder="Sort code"
+                  className="w-full rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm dark:bg-white/2 dark:text-slate-200"
+                />
+                <input
+                  key={`${invoice.id}-acc-${invoice.payeeAccountNumber ?? ''}`}
+                  type="text"
+                  disabled={saving}
+                  defaultValue={invoice.payeeAccountNumber ?? ''}
+                  onBlur={(e) => savePayeeField('payeeAccountNumber', e.target.value)}
+                  placeholder="Account number"
+                  className="w-full rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm dark:bg-white/2 dark:text-slate-200"
+                />
+                <input
+                  key={`${invoice.id}-name-${invoice.payeeAccountName ?? ''}`}
+                  type="text"
+                  disabled={saving}
+                  defaultValue={invoice.payeeAccountName ?? ''}
+                  onBlur={(e) => savePayeeField('payeeAccountName', e.target.value)}
+                  placeholder="Payee account name (optional)"
+                  className="w-full rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm dark:bg-white/2 dark:text-slate-200"
+                />
+              </div>
+            </section>
+          )}
+
           {/* Line items */}
           {invoice.lineItems?.length > 0 && (
             <section>
@@ -277,16 +336,41 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete }: Inv
           )}
         </div>
 
-        {onDelete && (
-          <div className="border-t border-border px-5 py-4">
-            <button
-              type="button"
-              onClick={() => onDelete(currentInvoice)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete invoice
-            </button>
+        {(onDownloadBacs || onDelete) && (
+          <div className="space-y-2 border-t border-border px-5 py-4">
+            {onDownloadBacs && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      disabled={bacsStats.included === 0}
+                      onClick={() => onDownloadBacs([currentInvoice])}
+                      className={cn(
+                        'flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors',
+                        bacsStats.included === 0
+                          ? 'cursor-not-allowed text-slate-400 dark:text-slate-600'
+                          : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5',
+                      )}
+                    />
+                  }
+                >
+                  <Landmark className="h-4 w-4" />
+                  Download BACS
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-left">{bacsTooltip}</TooltipContent>
+              </Tooltip>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(currentInvoice)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/10"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete invoice
+              </button>
+            )}
           </div>
         )}
       </div>

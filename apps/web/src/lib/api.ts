@@ -52,6 +52,9 @@ export function createApiClient(getToken: () => Promise<string | null>) {
         tags?: string[]
         paid?: boolean
         paidDate?: string | null
+        payeeSortCode?: string | null
+        payeeAccountNumber?: string | null
+        payeeAccountName?: string | null
         editedField?: string
       },
     ) =>

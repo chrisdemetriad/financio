@@ -12,7 +12,8 @@ Checks to perform:
 4. lineItems totals should sum close to subtotal if subtotal is provided.
 5. Currency should be a valid ISO 4217 code.
 6. Dates should be valid calendar dates in YYYY-MM-DD format.
-7. If a field looks wrong but you cannot be confident in the correction, leave it as-is and lower its confidence score.
+7. For UK invoices, payeeSortCode should be 6 digits (ignore separators), payeeAccountNumber typically 8 digits when present.
+8. If a field looks wrong but you cannot be confident in the correction, leave it as-is and lower its confidence score.
 
 Return the corrected JSON with the same schema. Make minimal changes — only fix clear logical errors.
 Respond ONLY with valid JSON — no markdown, no explanation.`

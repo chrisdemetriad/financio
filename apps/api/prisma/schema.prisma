@@ -39,6 +39,9 @@ model Invoice {
   tax           Decimal?      @db.Decimal(12, 2)
   total         Decimal?      @db.Decimal(12, 2)
   currency      String?       @default("GBP")
+  payeeSortCode       String?
+  payeeAccountNumber  String?
+  payeeAccountName    String?
   confidence    Json          @default("{}")
   editedFields  String[]
   tags          String[]

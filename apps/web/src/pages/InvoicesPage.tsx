@@ -27,6 +27,16 @@ import { useSettings } from '@/lib/settings'
 import { downloadByFormat } from '@/lib/download'
 import { invoiceToFormat } from '@financio/exports'
 import type { ExportFormat, Invoice } from '@financio/types'
+import {
+  bacsStatsFromSelection,
+  buildBacsDownload,
+  downloadTextFile,
+  eligibleInvoicesForBacs,
+  loadBacsOrigin,
+  saveBacsOrigin,
+  type StoredBacsOrigin,
+} from '@/lib/bacs'
+import { BacsOriginDialog } from '@/components/invoices/BacsOriginDialog'
 
 const POLL_INTERVAL_MS = 3000
 
@@ -52,6 +62,8 @@ export function InvoicesPage() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Invoice[] | null>(null)
   const [selectionClearToken, setSelectionClearToken] = useState(0)
+  const [bacsOriginOpen, setBacsOriginOpen] = useState(false)
+  const [bacsPendingEligible, setBacsPendingEligible] = useState<Invoice[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const processingIds = useRef<Set<string>>(new Set())
   /** Completed uploads held until every in-flight invoice finishes, then copied once. */
@@ -252,10 +264,11 @@ export function InvoicesPage() {
 
   const handleDrawerUpdate = useCallback(async (
     id: string,
-    patch: Partial<Pick<import('@financio/types').Invoice, 'tags' | 'paid' | 'paidDate'>>,
+    patch: Partial<Pick<Invoice, 'tags' | 'paid' | 'paidDate' | 'payeeSortCode' | 'payeeAccountNumber' | 'payeeAccountName'>> & { editedField?: string },
   ) => {
     try {
-      const updated = await api.patchInvoice(id, patch)
+      const { editedField, ...fields } = patch
+      const updated = await api.patchInvoice(id, { ...fields, editedField })
       setInvoices((prev) => prev.map((inv) => inv.id === id ? updated : inv))
       if (selectedInvoice?.id === id) setSelectedInvoice(updated)
       if (viewingFile?.id === id) setViewingFile(updated)
@@ -294,6 +307,38 @@ export function InvoicesPage() {
   const handleDownloadSelected = useCallback((selected: Invoice[]) => {
     downloadByFormat(selected, 'xlsx')
   }, [])
+
+  const runBacsDownload = useCallback((eligible: Invoice[], origin: StoredBacsOrigin) => {
+    try {
+      const { filename, content } = buildBacsDownload(eligible, origin)
+      downloadTextFile(filename, content)
+      toast.success(`Downloaded BACS file with ${eligible.length} payment${eligible.length > 1 ? 's' : ''}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to build BACS file')
+    }
+  }, [])
+
+  const handleDownloadBacs = useCallback((selected: Invoice[]) => {
+    const stats = bacsStatsFromSelection(selected)
+    if (stats.included === 0) {
+      toast.error('No eligible GBP invoices with UK bank details. Use invoice details to add sort code and account, or deselect non-GBP rows.')
+      return
+    }
+    const eligible = eligibleInvoicesForBacs(selected)
+    const origin = loadBacsOrigin()
+    if (!origin) {
+      setBacsPendingEligible(eligible)
+      setBacsOriginOpen(true)
+      return
+    }
+    runBacsDownload(eligible, origin)
+  }, [runBacsDownload])
+
+  const handleBacsOriginSave = useCallback((origin: StoredBacsOrigin) => {
+    saveBacsOrigin(origin)
+    if (bacsPendingEligible.length > 0) runBacsDownload(bacsPendingEligible, origin)
+    setBacsPendingEligible([])
+  }, [bacsPendingEligible, runBacsDownload])
 
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
@@ -370,6 +415,7 @@ export function InvoicesPage() {
         selectionClearToken={selectionClearToken}
         onCopySelected={handleCopySelected}
         onDownloadSelected={handleDownloadSelected}
+        onDownloadBacs={handleDownloadBacs}
       />
 
       {/* Detail sheet */}
@@ -378,6 +424,7 @@ export function InvoicesPage() {
         onClose={() => { setSelectedInvoice(null); navigate('/invoices') }}
         onUpdate={handleDrawerUpdate}
         onDelete={(inv) => handleRequestDelete([inv])}
+        onDownloadBacs={handleDownloadBacs}
       />
 
       <DeleteInvoiceDialog
@@ -418,6 +465,17 @@ export function InvoicesPage() {
         onExport={handleBulkExport}
         onShowShortcuts={() => setShowShortcuts(true)}
         hasInvoices={invoices.some((i) => i.status === 'complete')}
+      />
+
+      <BacsOriginDialog
+        open={bacsOriginOpen}
+        onOpenChange={(o) => {
+          setBacsOriginOpen(o)
+          if (!o) setBacsPendingEligible([])
+        }}
+        initial={loadBacsOrigin()}
+        paymentCount={bacsPendingEligible.length}
+        onSave={handleBacsOriginSave}
       />
 
       {/* Shortcuts modal */}

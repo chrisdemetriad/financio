@@ -11,7 +11,7 @@ import {
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
 import {
   ArrowUpDown, ArrowUp, ArrowDown, ExternalLink,
-  Search, X, Copy, Download, Trash2, CalendarIcon,
+  Search, X, Copy, Download, Trash2, CalendarIcon, Landmark,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -24,6 +24,7 @@ import {
 import { InvoiceRowActions } from './InvoiceRowActions'
 import type { Invoice, InvoiceConfidence } from '@financio/types'
 import { invoiceServiceDescription } from '@financio/exports'
+import { bacsStatsFromSelection } from '@/lib/bacs'
 import { cn } from '@/lib/utils'
 
 const AMOUNT_FIELD_TO_API: Record<string, 'subtotal' | 'tax' | 'total'> = {
@@ -419,9 +420,15 @@ function FilterBar({ filters, currencies, onChange }: {
 
 // ─── Floating bulk-actions bar ────────────────────────────────────────────────
 
-function BulkActionsBar({ count, totalAmount, currency, onCopyCsv, onCopyJson, onDownloadExcel, onDelete, onClear }: {
+function BulkActionsBar({
+  count, totalAmount, currency, onCopyCsv, onCopyJson, onDownloadExcel, onDownloadBacs, bacsTooltip, bacsDisabled,
+  onDelete, onClear,
+}: {
   count: number; totalAmount: number | null; currency: string | null
   onCopyCsv: () => void; onCopyJson: () => void; onDownloadExcel: () => void
+  onDownloadBacs?: () => void
+  bacsTooltip: string
+  bacsDisabled: boolean
   onDelete: () => void; onClear: () => void
 }) {
   if (count === 0) return null
@@ -473,6 +480,29 @@ function BulkActionsBar({ count, totalAmount, currency, onCopyCsv, onCopyJson, o
           Excel
         </button>
         <div className="hidden h-4 w-px bg-slate-200 sm:block dark:bg-white/10" />
+        {onDownloadBacs && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  disabled={bacsDisabled}
+                  onClick={onDownloadBacs}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors',
+                    bacsDisabled
+                      ? 'cursor-not-allowed text-slate-400 dark:text-slate-600'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white',
+                  )}
+                />
+              }
+            >
+              <Landmark className="h-3.5 w-3.5" />
+              Download BACS
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-left">{bacsTooltip}</TooltipContent>
+          </Tooltip>
+        )}
         <button
           type="button"
           onClick={onDelete}
@@ -505,13 +535,14 @@ interface InvoiceTableProps {
   selectionClearToken?: number
   onCopySelected: (invoices: Invoice[], format: 'csv' | 'json') => void
   onDownloadSelected: (invoices: Invoice[]) => void
+  onDownloadBacs?: (invoices: Invoice[]) => void
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function InvoiceTable({
   invoices, visibleColumns, onViewDetails, onViewFile,
-  onUpdate, onRequestDelete, selectionClearToken = 0, onCopySelected, onDownloadSelected,
+  onUpdate, onRequestDelete, selectionClearToken = 0, onCopySelected, onDownloadSelected, onDownloadBacs,
 }: InvoiceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'invoiceDate', desc: true }])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -594,6 +625,21 @@ export function InvoiceTable({
     const unique = [...new Set(selectedInvoices.map((i) => i.currency).filter(Boolean))]
     return unique.length === 1 ? (unique[0] as string) : null
   }, [selectedInvoices])
+
+  const bacsStats = useMemo(() => bacsStatsFromSelection(selectedInvoices), [selectedInvoices])
+  const bacsTooltip = useMemo(() => {
+    const { included, skippedNonGbp, skippedNoBank, skippedNotComplete } = bacsStats
+    const lines = [
+      `${included} GBP payment${included === 1 ? '' : 's'} in the file (completed rows with sort code, account number, and gross total).`,
+    ]
+    const skips: string[] = []
+    if (skippedNonGbp > 0) skips.push(`${skippedNonGbp} not GBP`)
+    if (skippedNoBank > 0) skips.push(`${skippedNoBank} missing UK bank details or gross amount`)
+    if (skippedNotComplete > 0) skips.push(`${skippedNotComplete} still processing or incomplete`)
+    if (skips.length) lines.push(`Skipped from selection: ${skips.join('; ')}.`)
+    lines.push('Standard 18–style credits + contra; verify with your payment provider (e.g. Modulr).')
+    return lines.join(' ')
+  }, [bacsStats])
 
   const overdueCount = useMemo(() => invoices.filter(isOverdue).length, [invoices])
   const hasAnyTags = useMemo(() => invoices.some((invoice) => (invoice.tags?.length ?? 0) > 0), [invoices])
@@ -1016,6 +1062,9 @@ export function InvoiceTable({
         onCopyCsv={() => onCopySelected(selectedInvoices, 'csv')}
         onCopyJson={() => onCopySelected(selectedInvoices, 'json')}
         onDownloadExcel={() => onDownloadSelected(selectedInvoices)}
+        onDownloadBacs={onDownloadBacs ? () => onDownloadBacs(selectedInvoices) : undefined}
+        bacsTooltip={bacsTooltip}
+        bacsDisabled={bacsStats.included === 0}
         onDelete={() => onRequestDelete(selectedInvoices)}
         onClear={() => setRowSelection({})}
       />

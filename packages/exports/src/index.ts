@@ -4,6 +4,16 @@ import type { Invoice, ExportFormat } from '@financio/types'
 import { invoiceServiceDescription } from './invoice.js'
 
 export { invoiceServiceDescription } from './invoice.js'
+export {
+  buildAchCreditBacsFile,
+  bacsProcessingDate,
+  bacsSanitize,
+  standardCreditLine,
+  contraLine,
+  type BacsOriginator,
+  type BacsPaymentInput,
+  type BuildBacsFileOptions,
+} from './bacs18.js'
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return ''

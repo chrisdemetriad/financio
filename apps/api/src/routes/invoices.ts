@@ -80,6 +80,9 @@ function formatInvoice(row: {
   tax: unknown
   total: unknown
   currency: string | null
+  payeeSortCode: string | null
+  payeeAccountNumber: string | null
+  payeeAccountName: string | null
   confidence: unknown
   editedFields: string[]
   tags: string[]
@@ -106,6 +109,9 @@ function formatInvoice(row: {
     tax: row.tax !== null && row.tax !== undefined ? Number(row.tax) : null,
     total: row.total !== null && row.total !== undefined ? Number(row.total) : null,
     currency: row.currency,
+    payeeSortCode: row.payeeSortCode,
+    payeeAccountNumber: row.payeeAccountNumber,
+    payeeAccountName: row.payeeAccountName,
     confidence: (row.confidence as Invoice['confidence']) ?? {},
     editedFields: row.editedFields ?? [],
     tags: row.tags ?? [],
@@ -134,8 +140,9 @@ async function persistExtracted(
       subtotal: validated.subtotal !== null ? validated.subtotal : undefined,
       tax: validated.tax !== null ? validated.tax : undefined,
       total: validated.total !== null ? validated.total : undefined,
-      currency: validated.currency,
-      confidence: validated.confidence,
+      payeeSortCode: validated.payeeSortCode,
+      payeeAccountNumber: validated.payeeAccountNumber,
+      payeeAccountName: validated.payeeAccountName,
       status: 'COMPLETE',
       ...(logos != null && {
         logoUrl: logos.url,
@@ -267,6 +274,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
       subtotal: z.number().nullable().optional(),
       tax: z.number().nullable().optional(),
       currency: z.string().max(3).nullable().optional(),
+      payeeSortCode: z.string().nullable().optional(),
+      payeeAccountNumber: z.string().nullable().optional(),
+      payeeAccountName: z.string().nullable().optional(),
       tags: z.array(z.string()).optional(),
       paid: z.boolean().optional(),
       paidDate: z.string().nullable().optional(),
@@ -287,6 +297,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (fastify) => {
     if (fields.subtotal !== undefined) updateData.subtotal = fields.subtotal
     if (fields.tax !== undefined) updateData.tax = fields.tax
     if (fields.currency !== undefined) updateData.currency = fields.currency
+    if (fields.payeeSortCode !== undefined) updateData.payeeSortCode = fields.payeeSortCode
+    if (fields.payeeAccountNumber !== undefined) updateData.payeeAccountNumber = fields.payeeAccountNumber
+    if (fields.payeeAccountName !== undefined) updateData.payeeAccountName = fields.payeeAccountName
     if (fields.tags !== undefined) updateData.tags = fields.tags
     if (fields.paid !== undefined) {
       updateData.paid = fields.paid

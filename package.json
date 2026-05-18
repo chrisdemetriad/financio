@@ -7,7 +7,8 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "prisma": "pnpm --filter @financio/api exec prisma"
   },
   "devDependencies": {
     "prettier": "^3.5.3",

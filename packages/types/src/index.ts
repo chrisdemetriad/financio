@@ -22,6 +22,9 @@ export interface InvoiceConfidence {
   subtotal?: number
   tax?: number
   currency?: number
+  payeeSortCode?: number
+  payeeAccountNumber?: number
+  payeeAccountName?: number
 }
 
 export interface Invoice {
@@ -41,6 +44,10 @@ export interface Invoice {
   tax: number | null
   total: number | null
   currency: string | null
+  /** UK bank details when printed on invoice (BACS / domestic payments). */
+  payeeSortCode: string | null
+  payeeAccountNumber: string | null
+  payeeAccountName: string | null
   confidence: InvoiceConfidence
   editedFields: string[]
   tags: string[]

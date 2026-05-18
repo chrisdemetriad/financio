@@ -34,6 +34,9 @@ export const ExtractedInvoiceSchema = z.object({
   tax: z.number().nullable(),
   total: z.number().nullable(),
   currency: z.string().nullable(),
+  payeeSortCode: z.string().nullable(),
+  payeeAccountNumber: z.string().nullable(),
+  payeeAccountName: z.string().nullable(),
   confidence: z.object({
     vendor: z.number().nullish(),
     invoiceNumber: z.number().nullish(),
@@ -43,6 +46,9 @@ export const ExtractedInvoiceSchema = z.object({
     subtotal: z.number().nullish(),
     tax: z.number().nullish(),
     currency: z.number().nullish(),
+    payeeSortCode: z.number().nullish(),
+    payeeAccountNumber: z.number().nullish(),
+    payeeAccountName: z.number().nullish(),
   }),
 })
 
@@ -57,7 +63,7 @@ Rules:
 - vendorDomain should be the website domain only (e.g. "amazon.co.uk"), no https/www prefix, or null
 - lineItems should capture every line on the invoice if visible
 - confidence values are 0.0–1.0 representing how certain you are for each field
-- If a field is not visible or you are unsure, set it to null (confidence: 0)
+- If UK bank details (sort code, account number, payee name) appear on the invoice for payment, extract them into payeeSortCode, payeeAccountNumber, payeeAccountName; otherwise null.
 
 Respond ONLY with valid JSON matching the schema exactly — no markdown, no explanation.`
 
@@ -72,9 +78,13 @@ const JSON_SCHEMA = `{
   "tax": "number | null",
   "total": "number | null",
   "currency": "ISO4217 | null",
+  "payeeSortCode": "UK 6-digit sort code as digits or dotted | null",
+  "payeeAccountNumber": "8-digit UK account number | null",
+  "payeeAccountName": "Payee account name as on bank details | null",
   "confidence": {
     "vendor"?: 0-1, "invoiceNumber"?: 0-1, "invoiceDate"?: 0-1,
-    "dueDate"?: 0-1, "total"?: 0-1, "subtotal"?: 0-1, "tax"?: 0-1, "currency"?: 0-1
+    "dueDate"?: 0-1, "total"?: 0-1, "subtotal"?: 0-1, "tax"?: 0-1, "currency"?: 0-1,
+    "payeeSortCode"?: 0-1, "payeeAccountNumber"?: 0-1, "payeeAccountName"?: 0-1
   }
 }`
 
