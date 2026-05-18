@@ -114,6 +114,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete, onDow
   }
 
   async function togglePaid() {
+    if (!onUpdate) return
     const next = !currentInvoice.paid
     setSaving(true)
     try {
