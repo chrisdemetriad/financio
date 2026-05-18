@@ -265,9 +265,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdate, onDelete, onDow
             </div>
           </section>
 
-          {/* Financials */}
+          {/* Net, VAT and gross (UK invoice-style totals) */}
           <section>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Financials</p>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Totals</p>
             <div className="space-y-1">
               <Field label="Net (ex. VAT)" value={invoice.subtotal !== null ? money(invoice.subtotal, invoice.currency) : null} confidence={c.subtotal} />
               <Field label="VAT" value={invoice.tax !== null ? money(invoice.tax, invoice.currency) : null} confidence={c.tax} />
